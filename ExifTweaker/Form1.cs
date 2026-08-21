@@ -39,7 +39,7 @@ public partial class Form1 : Form
         bChange.Text = "STAGE";
         WireCommands();
         _map.BringToFront();
-        _map.LocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
+        _map.MapLocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
         Shown += async (_, _) =>
         {
             try { await _map.InitializeAsync(); }

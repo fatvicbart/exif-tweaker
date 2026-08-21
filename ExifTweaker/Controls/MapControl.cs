@@ -12,14 +12,14 @@ public sealed record MapMarker(double Latitude, double Longitude, string Label, 
 
 public sealed partial class MapControl : UserControl
 {
-    public event EventHandler<MapLocationChangedEventArgs>? LocationChanged;
+    public event EventHandler<MapLocationChangedEventArgs>? MapLocationChanged;
 
     public MapControl()
     {
         InitializeComponent();
         browser.WebMessageReceived += (_, args) =>
         {
-            try { var point = JsonSerializer.Deserialize<MapPoint>(args.TryGetWebMessageAsString()); if (point is not null) LocationChanged?.Invoke(this, new MapLocationChangedEventArgs(point.Latitude, point.Longitude)); }
+            try { var point = JsonSerializer.Deserialize<MapPoint>(args.TryGetWebMessageAsString()); if (point is not null) MapLocationChanged?.Invoke(this, new MapLocationChangedEventArgs(point.Latitude, point.Longitude)); }
             catch (JsonException) { }
         };
     }

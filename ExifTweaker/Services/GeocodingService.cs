@@ -76,7 +76,10 @@ public sealed class GeocodingService : IGeocodingService
         return result;
     }
 
-    private static bool TryGetCoordinate(JsonElement item, string propertyName, out double value) =>
-        item.TryGetProperty(propertyName, out var property) &&
-        double.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    private static bool TryGetCoordinate(JsonElement item, string propertyName, out double value)
+    {
+        value = default;
+        return item.TryGetProperty(propertyName, out var property) &&
+               double.TryParse(property.GetString(), NumberStyles.Float, CultureInfo.InvariantCulture, out value);
+    }
 }
