@@ -15,6 +15,7 @@ public partial class Form1 : Form
     private readonly LocationEditorService _locations = new();
     private readonly MapControl _map = new() { Visible = false };
     private readonly BindingSource _bindingSource = new();
+    private Func<PhotoItem, bool> _activeFilter = _ => true;
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
@@ -44,7 +45,7 @@ public partial class Form1 : Form
             try { await _map.InitializeAsync(); }
             catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); MessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         };
-        _session.PropertyChanged += (_, _) => UpdateSessionCaption();
+        _session.PropertyChanged += (_, _) => { UpdateSessionCaption(); RefreshFilter(); };
         UpdateSessionCaption();
     }
 
@@ -133,12 +134,13 @@ public partial class Form1 : Form
         {
             SetBusy(true);
             var results = await _geocoding.SearchAsync(tGPS.Text, StartOperation());
-            var first = results.FirstOrDefault();
-            if (first is null) { MessageBox.Show("No location found."); return; }
-            tLat.Text = first.Latitude.ToString(CultureInfo.InvariantCulture);
-            tLon.Text = first.Longitude.ToString(CultureInfo.InvariantCulture);
-            tName.Text = first.Name;
-            tType.Text = first.Type;
+            if (results.Count == 0) { MessageBox.Show("No location found."); return; }
+            using var chooser = new GeocodingSelectionForm(results);
+            if (chooser.ShowDialog(this) != DialogResult.OK || chooser.Selected is not Coordinates selected) return;
+            tLat.Text = selected.Latitude.ToString(CultureInfo.InvariantCulture);
+            tLon.Text = selected.Longitude.ToString(CultureInfo.InvariantCulture);
+            tName.Text = selected.Name;
+            tType.Text = selected.Type;
         }
         catch (OperationCanceledException) { AppLogger.Info("Geocoding cancelled."); }
         catch (Exception ex) { AppLogger.Error("Geocoding failed.", ex); MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -196,7 +198,16 @@ public partial class Form1 : Form
         commands.BringToFront();
     }
 
-    private void ApplyFilter(Func<PhotoItem, bool> predicate) => _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(predicate).ToList());
+    private void ApplyFilter(Func<PhotoItem, bool> predicate)
+    {
+        _activeFilter = predicate;
+        RefreshFilter();
+    }
+
+    private void RefreshFilter()
+    {
+        _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(_activeFilter).ToList());
+    }
 
     private void StageGpsFromFields()
     {
