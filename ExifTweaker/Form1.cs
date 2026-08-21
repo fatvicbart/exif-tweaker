@@ -15,6 +15,7 @@ public partial class Form1 : Form
     private readonly LocationEditorService _locations = new();
     private readonly MapControl _map = new() { Visible = false };
     private readonly BindingSource _bindingSource = new();
+    private ToolStrip? _commands;
     private Func<PhotoItem, bool> _activeFilter = _ => true;
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
@@ -119,7 +120,7 @@ public partial class Form1 : Form
             var ct = StartOperation();
             var progress = new Progress<int>(value => pgb.Value = value);
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
-            _history.Clear();
+            if (result.FailedCount == 0) _history.Clear();
             _session.NotifyChanged();
             using var report = new ApplyReportForm(result);
             report.ShowDialog(this);
@@ -179,7 +180,7 @@ public partial class Form1 : Form
 
     private void CreateCommands()
     {
-        var commands = new ToolStrip { Dock = DockStyle.Top };
+        var commands = _commands = new ToolStrip { Dock = DockStyle.Top };
         commands.Items.Add("Apply", null, async (_, _) => await ApplyPendingChangesAsync(_session.Media));
         commands.Items.Add("Undo", null, (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); });
         commands.Items.Add("Redo", null, (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); });
@@ -314,6 +315,7 @@ public partial class Form1 : Form
     private void SetBusy(bool busy)
     {
         main.Enabled = !busy;
+        if (_commands is not null) _commands.Enabled = !busy;
         if (busy) pgb.Value = 0;
     }
 

@@ -191,7 +191,9 @@ namespace ExifTweaker
             // dateTimePicker1
             // 
             dateTimePicker1.Dock = DockStyle.Fill;
-            dateTimePicker1.Format = DateTimePickerFormat.Short;
+            dateTimePicker1.Format = DateTimePickerFormat.Custom;
+            dateTimePicker1.CustomFormat = "yyyy-MM-dd HH:mm:ss";
+            dateTimePicker1.ShowUpDown = true;
             dateTimePicker1.Location = new Point(4, 3);
             dateTimePicker1.Margin = new Padding(4, 3, 4, 3);
             dateTimePicker1.Name = "dateTimePicker1";
