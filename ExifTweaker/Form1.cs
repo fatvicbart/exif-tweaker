@@ -8,7 +8,8 @@ namespace ExifTweaker;
 
 public partial class Form1 : Form
 {
-    private readonly BindingList<PhotoItem> _files = new();
+    private readonly ImportSession _session = new();
+    private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
     private readonly MetadataService _metadata;
@@ -25,6 +26,8 @@ public partial class Form1 : Form
         InitializeComponent();
         dgv.AutoGenerateColumns = true;
         dgv.DataSource = new BindingSource { DataSource = _files };
+        _session.PropertyChanged += (_, _) => UpdateSessionCaption();
+        UpdateSessionCaption();
     }
 
     private async void button1_Click(object sender, EventArgs e)
@@ -92,7 +95,7 @@ public partial class Form1 : Form
             pgb.Value = 5;
             var progress = new Progress<int>(value => pgb.Value = Math.Clamp(5 + value * 95 / 100, 0, 100));
             var items = await _metadata.LoadAsync(newPaths, progress, ct);
-            foreach (var item in items) _files.Add(item);
+            _session.AddRange(items);
         }
         catch (OperationCanceledException) { AppLogger.Info("Import cancelled."); }
         catch (Exception ex) { AppLogger.Error("Import failed.", ex); MessageBox.Show(ex.Message, "Import error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
@@ -135,7 +138,7 @@ public partial class Form1 : Form
     private void dgv_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.KeyCode != Keys.Delete) return;
-        foreach (var item in SelectedItems) _files.Remove(item);
+        foreach (var item in SelectedItems) _session.Remove(item);
         e.Handled = true;
     }
 
@@ -165,8 +168,23 @@ public partial class Form1 : Form
         return base.ProcessCmdKey(ref message, keyData);
     }
 
+    private void UpdateSessionCaption()
+    {
+        var statistics = _session.Statistics;
+        var range = statistics.FirstCaptureDate is DateTime first && statistics.LastCaptureDate is DateTime last
+            ? $" | {first:yyyy-MM-dd} to {last:yyyy-MM-dd}"
+            : string.Empty;
+        Text = $"ExifTweaker — {statistics.MediaCount} media | {statistics.FilesWithGps} GPS | {statistics.PendingChangeCount} pending{range}";
+    }
+
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        if (e.CloseReason == CloseReason.UserClosing && _session.HasPendingChanges &&
+            MessageBox.Show("Pending metadata changes have not been applied. Close anyway?", "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+        {
+            e.Cancel = true;
+            return;
+        }
         _operationCts?.Cancel();
         base.OnFormClosing(e);
     }
