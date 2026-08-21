@@ -50,7 +50,7 @@ public partial class Form1 : Form
         UpdateSessionCaption();
     }
 
-    private async void button1_Click(object sender, EventArgs e)
+    private void button1_Click(object sender, EventArgs e)
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
