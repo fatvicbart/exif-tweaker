@@ -10,6 +10,8 @@ public partial class Form1 : Form
 {
     private readonly ImportSession _session = new();
     private readonly EditHistory _history = new();
+    private readonly ThumbnailService _thumbnails = new();
+    private readonly BindingSource _bindingSource = new();
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
@@ -26,9 +28,11 @@ public partial class Form1 : Form
         _geocoding = new GeocodingService(_settings);
         InitializeComponent();
         dgv.AutoGenerateColumns = true;
-        dgv.DataSource = new BindingSource { DataSource = _files };
+        _bindingSource.DataSource = _files;
+        dgv.DataSource = _bindingSource;
         ConfigureGrid();
         bChange.Text = "STAGE";
+        CreateCommands();
         _session.PropertyChanged += (_, _) => UpdateSessionCaption();
         UpdateSessionCaption();
     }
@@ -150,17 +154,13 @@ public partial class Form1 : Form
         e.Handled = true;
     }
 
-    private void dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+    private async void dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
     {
         if (e.RowIndex < 0 || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
-        try
-        {
-            using var stream = new FileStream(item.FilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            using var source = Image.FromStream(stream);
-            var clone = new Bitmap(source);
-            var previous = picBox.Image; picBox.Image = clone; previous?.Dispose();
-        }
-        catch { var previous = picBox.Image; picBox.Image = null; previous?.Dispose(); }
+        var image = await _thumbnails.GetAsync(item.FilePath, 1600);
+        var previous = picBox.Image;
+        picBox.Image = image;
+        previous?.Dispose();
     }
 
     private void dgv_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
@@ -174,6 +174,42 @@ public partial class Form1 : Form
     {
         if (keyData == Keys.Escape && _operationCts is { IsCancellationRequested: false }) { _operationCts.Cancel(); return true; }
         return base.ProcessCmdKey(ref message, keyData);
+    }
+
+    private void CreateCommands()
+    {
+        var commands = new ToolStrip { Dock = DockStyle.Top };
+        commands.Items.Add("Apply", null, async (_, _) => await ApplyPendingChangesAsync(_session.Media));
+        commands.Items.Add("Undo", null, (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); });
+        commands.Items.Add("Redo", null, (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); });
+        commands.Items.Add("Reset selected", null, (_, _) => ResetPatches(SelectedItems));
+        commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
+        commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
+        commands.Items.Add("All", null, (_, _) => ApplyFilter(_ => true));
+        commands.Items.Add("Modified", null, (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges));
+        commands.Items.Add("No GPS", null, (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue));
+        commands.Items.Add("Errors", null, (_, _) => ApplyFilter(item => item.Error is not null));
+        commands.Items.Add("Restore backup", null, async (_, _) => await RestoreSelectedAsync());
+        Controls.Add(commands);
+        commands.BringToFront();
+    }
+
+    private void ApplyFilter(Func<PhotoItem, bool> predicate) => _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(predicate).ToList());
+
+    private void ShiftSelected(TimeSpan shift)
+    {
+        var selected = SelectedItems;
+        _history.Capture(selected);
+        foreach (var item in selected) { item.PendingChanges.CaptureDate = null; item.PendingChanges.DateShift = (item.PendingChanges.DateShift ?? TimeSpan.Zero) + shift; item.NotifyChanged(); }
+        _session.NotifyChanged();
+    }
+
+    private async Task RestoreSelectedAsync()
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0 || MessageBox.Show("Restore selected files from their ExifTool backups?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        foreach (var item in selected) await _metadata.RestoreBackupAsync(item);
+        _session.NotifyChanged();
     }
 
     private void ConfigureGrid()
