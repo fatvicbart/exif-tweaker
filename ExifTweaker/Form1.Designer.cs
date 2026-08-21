@@ -1,4 +1,4 @@
-﻿namespace ExifTweaker
+namespace ExifTweaker
 {
     partial class Form1
     {
@@ -51,7 +51,6 @@
             dgv = new DataGridView();
             picBox = new PictureBox();
             pgb = new ProgressBar();
-            bgw = new System.ComponentModel.BackgroundWorker();
             main.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -347,12 +346,6 @@
             pgb.Size = new Size(615, 17);
             pgb.TabIndex = 5;
             // 
-            // bgw
-            // 
-            bgw.WorkerReportsProgress = true;
-            bgw.DoWork += bgw_DoWork;
-            bgw.ProgressChanged += bgw_ProgressChanged;
-            bgw.RunWorkerCompleted += bgw_RunWorkerCompleted;
             // 
             // Form1
             // 
@@ -404,6 +397,5 @@
         private System.Windows.Forms.PictureBox picBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.ProgressBar pgb;
-        private System.ComponentModel.BackgroundWorker bgw;
     }
 }
