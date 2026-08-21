@@ -44,7 +44,9 @@ namespace ExifTweaker
             tType = new TextBox();
             tLon = new TextBox();
             tLat = new TextBox();
+            tAlt = new TextBox();
             label1 = new Label();
+            label4 = new Label();
             tGPS = new TextBox();
             tName = new TextBox();
             splitContainer1 = new SplitContainer();
@@ -53,6 +55,7 @@ namespace ExifTweaker
             dateColumn = new DataGridViewTextBoxColumn();
             latitudeColumn = new DataGridViewTextBoxColumn();
             longitudeColumn = new DataGridViewTextBoxColumn();
+            altitudeColumn = new DataGridViewTextBoxColumn();
             cityColumn = new DataGridViewTextBoxColumn();
             countryColumn = new DataGridViewTextBoxColumn();
             statusColumn = new DataGridViewTextBoxColumn();
@@ -74,11 +77,15 @@ namespace ExifTweaker
             commandSeparator3 = new ToolStripSeparator();
             removeGpsCommand = new ToolStripButton();
             setGpsCommand = new ToolStripButton();
+            copyGpsCommand = new ToolStripButton();
+            pasteGpsCommand = new ToolStripButton();
+            reverseGpsCommand = new ToolStripButton();
             mapCommand = new ToolStripButton();
             commandSeparator4 = new ToolStripSeparator();
             allFilterCommand = new ToolStripButton();
             modifiedFilterCommand = new ToolStripButton();
             noGpsFilterCommand = new ToolStripButton();
+            noDateFilterCommand = new ToolStripButton();
             errorsFilterCommand = new ToolStripButton();
             commandSeparator5 = new ToolStripSeparator();
             restoreBackupCommand = new ToolStripButton();
@@ -172,21 +179,25 @@ namespace ExifTweaker
             // 
             // tableLayoutPanel3
             // 
-            tableLayoutPanel3.ColumnCount = 7;
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25.00031F));
+            tableLayoutPanel3.ColumnCount = 9;
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35F));
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25.00031F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35F));
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24.99969F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35F));
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 24.99969F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 35F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20F));
             tableLayoutPanel3.Controls.Add(label3, 3, 0);
             tableLayoutPanel3.Controls.Add(label2, 1, 0);
             tableLayoutPanel3.Controls.Add(dateTimePicker1, 0, 0);
-            tableLayoutPanel3.Controls.Add(tType, 6, 0);
+            tableLayoutPanel3.Controls.Add(tType, 8, 0);
             tableLayoutPanel3.Controls.Add(tLon, 4, 0);
             tableLayoutPanel3.Controls.Add(tLat, 2, 0);
-            tableLayoutPanel3.Controls.Add(label1, 5, 0);
+            tableLayoutPanel3.Controls.Add(label4, 5, 0);
+            tableLayoutPanel3.Controls.Add(tAlt, 6, 0);
+            tableLayoutPanel3.Controls.Add(label1, 7, 0);
             tableLayoutPanel3.Dock = DockStyle.Fill;
             tableLayoutPanel3.Location = new Point(93, 0);
             tableLayoutPanel3.Margin = new Padding(0);
@@ -248,7 +259,6 @@ namespace ExifTweaker
             tLon.Location = new Point(282, 3);
             tLon.Margin = new Padding(0, 3, 0, 3);
             tLon.Name = "tLon";
-            tLon.ReadOnly = true;
             tLon.Size = new Size(106, 23);
             tLon.TabIndex = 9;
             // 
@@ -258,7 +268,6 @@ namespace ExifTweaker
             tLat.Location = new Point(141, 3);
             tLat.Margin = new Padding(0, 3, 0, 3);
             tLat.Name = "tLat";
-            tLat.ReadOnly = true;
             tLat.Size = new Size(106, 23);
             tLat.TabIndex = 8;
             // 
@@ -273,6 +282,27 @@ namespace ExifTweaker
             label1.TabIndex = 11;
             label1.Text = "Typ:";
             label1.TextAlign = ContentAlignment.MiddleRight;
+            // 
+            // label4
+            // 
+            label4.AutoSize = true;
+            label4.Dock = DockStyle.Fill;
+            label4.Location = new Point(388, 3);
+            label4.Margin = new Padding(0, 3, 0, 3);
+            label4.Name = "label4";
+            label4.Size = new Size(35, 24);
+            label4.TabIndex = 14;
+            label4.Text = "Alt:";
+            label4.TextAlign = ContentAlignment.MiddleRight;
+            // 
+            // tAlt
+            // 
+            tAlt.Dock = DockStyle.Fill;
+            tAlt.Location = new Point(423, 3);
+            tAlt.Margin = new Padding(0, 3, 0, 3);
+            tAlt.Name = "tAlt";
+            tAlt.Size = new Size(70, 23);
+            tAlt.TabIndex = 15;
             // 
             // tGPS
             // 
@@ -333,7 +363,7 @@ namespace ExifTweaker
             dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
             dgv.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgv.Columns.AddRange(new DataGridViewColumn[] { fileNameColumn, dateColumn, latitudeColumn, longitudeColumn, cityColumn, countryColumn, statusColumn });
+            dgv.Columns.AddRange(new DataGridViewColumn[] { fileNameColumn, dateColumn, latitudeColumn, longitudeColumn, altitudeColumn, cityColumn, countryColumn, statusColumn });
             // 
             // fileNameColumn
             // 
@@ -358,6 +388,12 @@ namespace ExifTweaker
             longitudeColumn.DataPropertyName = "Longitude";
             longitudeColumn.HeaderText = "Longitude";
             longitudeColumn.Name = "Longitude";
+            // 
+            // altitudeColumn
+            // 
+            altitudeColumn.DataPropertyName = "Altitude";
+            altitudeColumn.HeaderText = "Altitude";
+            altitudeColumn.Name = "Altitude";
             // 
             // cityColumn
             // 
@@ -433,7 +469,7 @@ namespace ExifTweaker
             // 
             commands.Dock = DockStyle.Top;
             commands.GripStyle = ToolStripGripStyle.Hidden;
-            commands.Items.AddRange(new ToolStripItem[] { applyCommand, undoCommand, redoCommand, commandSeparator1, resetSelectedCommand, resetAllCommand, commandSeparator2, minusHourCommand, plusHourCommand, minusMinuteCommand, plusMinuteCommand, commandSeparator3, removeGpsCommand, setGpsCommand, mapCommand, commandSeparator4, allFilterCommand, modifiedFilterCommand, noGpsFilterCommand, errorsFilterCommand, commandSeparator5, restoreBackupCommand });
+            commands.Items.AddRange(new ToolStripItem[] { applyCommand, undoCommand, redoCommand, commandSeparator1, resetSelectedCommand, resetAllCommand, commandSeparator2, minusHourCommand, plusHourCommand, minusMinuteCommand, plusMinuteCommand, commandSeparator3, removeGpsCommand, setGpsCommand, copyGpsCommand, pasteGpsCommand, reverseGpsCommand, mapCommand, commandSeparator4, allFilterCommand, modifiedFilterCommand, noGpsFilterCommand, noDateFilterCommand, errorsFilterCommand, commandSeparator5, restoreBackupCommand });
             commands.Location = new Point(0, 0);
             commands.Name = "commands";
             commands.Size = new Size(623, 25);
@@ -506,6 +542,24 @@ namespace ExifTweaker
             setGpsCommand.Name = "setGpsCommand";
             setGpsCommand.Text = "Set GPS";
             // 
+            // copyGpsCommand
+            // 
+            copyGpsCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            copyGpsCommand.Name = "copyGpsCommand";
+            copyGpsCommand.Text = "Copy GPS";
+            // 
+            // pasteGpsCommand
+            // 
+            pasteGpsCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            pasteGpsCommand.Name = "pasteGpsCommand";
+            pasteGpsCommand.Text = "Paste GPS";
+            // 
+            // reverseGpsCommand
+            // 
+            reverseGpsCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            reverseGpsCommand.Name = "reverseGpsCommand";
+            reverseGpsCommand.Text = "Reverse GPS";
+            // 
             // mapCommand
             // 
             mapCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
@@ -529,6 +583,12 @@ namespace ExifTweaker
             noGpsFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
             noGpsFilterCommand.Name = "noGpsFilterCommand";
             noGpsFilterCommand.Text = "No GPS";
+            // 
+            // noDateFilterCommand
+            // 
+            noDateFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            noDateFilterCommand.Name = "noDateFilterCommand";
+            noDateFilterCommand.Text = "No date";
             // 
             // errorsFilterCommand
             // 
@@ -585,6 +645,7 @@ namespace ExifTweaker
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
         private System.Windows.Forms.TextBox tLat;
         private System.Windows.Forms.TextBox tLon;
+        private System.Windows.Forms.TextBox tAlt;
         private System.Windows.Forms.DateTimePicker dateTimePicker1;
         private System.Windows.Forms.TextBox tGPS;
         private System.Windows.Forms.TextBox tName;
@@ -593,6 +654,7 @@ namespace ExifTweaker
         private System.Windows.Forms.DataGridViewTextBoxColumn dateColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn latitudeColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn longitudeColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn altitudeColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn cityColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn countryColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn statusColumn;
@@ -600,6 +662,7 @@ namespace ExifTweaker
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label2;
         private System.Windows.Forms.Label label1;
+        private System.Windows.Forms.Label label4;
         private System.Windows.Forms.PictureBox picBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.ProgressBar pgb;
@@ -619,11 +682,15 @@ namespace ExifTweaker
         private System.Windows.Forms.ToolStripSeparator commandSeparator3;
         private System.Windows.Forms.ToolStripButton removeGpsCommand;
         private System.Windows.Forms.ToolStripButton setGpsCommand;
+        private System.Windows.Forms.ToolStripButton copyGpsCommand;
+        private System.Windows.Forms.ToolStripButton pasteGpsCommand;
+        private System.Windows.Forms.ToolStripButton reverseGpsCommand;
         private System.Windows.Forms.ToolStripButton mapCommand;
         private System.Windows.Forms.ToolStripSeparator commandSeparator4;
         private System.Windows.Forms.ToolStripButton allFilterCommand;
         private System.Windows.Forms.ToolStripButton modifiedFilterCommand;
         private System.Windows.Forms.ToolStripButton noGpsFilterCommand;
+        private System.Windows.Forms.ToolStripButton noDateFilterCommand;
         private System.Windows.Forms.ToolStripButton errorsFilterCommand;
         private System.Windows.Forms.ToolStripSeparator commandSeparator5;
         private System.Windows.Forms.ToolStripButton restoreBackupCommand;

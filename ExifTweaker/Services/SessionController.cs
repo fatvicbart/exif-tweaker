@@ -29,11 +29,11 @@ public sealed class SessionController
         Session.NotifyChanged();
     }
 
-    public void SetLocation(IEnumerable<PhotoItem> items, double latitude, double longitude, LocationEditorService locations)
+    public void SetLocation(IEnumerable<PhotoItem> items, double latitude, double longitude, double? altitude, LocationEditorService locations)
     {
         var selected = items.ToList();
         History.Capture(selected);
-        locations.SetLocation(selected, latitude, longitude);
+        locations.SetLocation(selected, latitude, longitude, altitude);
         Session.NotifyChanged();
     }
 

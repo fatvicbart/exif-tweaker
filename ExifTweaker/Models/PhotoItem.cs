@@ -22,12 +22,14 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public string Country => Original.Country ?? string.Empty;
     public string Latitude => EffectiveLatitude?.ToString("F6") ?? string.Empty;
     public string Longitude => EffectiveLongitude?.ToString("F6") ?? string.Empty;
+    public string Altitude => EffectiveAltitude?.ToString("F2") ?? string.Empty;
     public string Status => Error is not null ? "Error" : PendingChanges.HasChanges ? "Modified" : "OK";
 
     [Browsable(false)] public DateTime? EffectiveCaptureDate => PendingChanges.CaptureDate ??
         (Original.CaptureDate.HasValue && PendingChanges.DateShift.HasValue ? Original.CaptureDate.Value + PendingChanges.DateShift.Value : Original.CaptureDate);
     [Browsable(false)] public double? EffectiveLatitude => PendingChanges.RemoveLocation ? null : PendingChanges.Latitude ?? Original.Latitude;
     [Browsable(false)] public double? EffectiveLongitude => PendingChanges.RemoveLocation ? null : PendingChanges.Longitude ?? Original.Longitude;
+    [Browsable(false)] public double? EffectiveAltitude => PendingChanges.RemoveLocation || PendingChanges.RemoveAltitude ? null : PendingChanges.Altitude ?? Original.Altitude;
     [Browsable(false)] public TimeSpan? EffectiveOffset => PendingChanges.RemoveOffsetTimeOriginal ? null : PendingChanges.OffsetTimeOriginal ?? Original.Offset;
 
     public void NotifyChanged() => OnPropertyChanged(string.Empty);

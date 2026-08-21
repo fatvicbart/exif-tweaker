@@ -8,24 +8,25 @@ public sealed class MetadataPatch
     public bool RemoveOffsetTimeOriginal { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+    public double? Altitude { get; set; }
+    public bool RemoveAltitude { get; set; }
     public bool RemoveLocation { get; set; }
 
     public bool HasDateChange => CaptureDate.HasValue || DateShift.HasValue;
-    public bool HasLocationChange => (Latitude.HasValue && Longitude.HasValue) || RemoveLocation;
+    public bool HasLocationChange => (Latitude.HasValue && Longitude.HasValue) || Altitude.HasValue || RemoveAltitude || RemoveLocation;
     public bool HasOffsetChange => OffsetTimeOriginal.HasValue || RemoveOffsetTimeOriginal;
-    public bool HasChanges => HasDateChange || HasOffsetChange ||
-                              (Latitude.HasValue && Longitude.HasValue) || RemoveLocation;
+    public bool HasChanges => HasDateChange || HasOffsetChange || HasLocationChange;
 
     public MetadataPatch Clone() => new()
     {
         CaptureDate = CaptureDate, DateShift = DateShift, OffsetTimeOriginal = OffsetTimeOriginal,
-        RemoveOffsetTimeOriginal = RemoveOffsetTimeOriginal, Latitude = Latitude, Longitude = Longitude, RemoveLocation = RemoveLocation
+        RemoveOffsetTimeOriginal = RemoveOffsetTimeOriginal, Latitude = Latitude, Longitude = Longitude, Altitude = Altitude, RemoveAltitude = RemoveAltitude, RemoveLocation = RemoveLocation
     };
 
     public void CopyFrom(MetadataPatch source)
     {
         CaptureDate = source.CaptureDate; DateShift = source.DateShift; OffsetTimeOriginal = source.OffsetTimeOriginal;
-        RemoveOffsetTimeOriginal = source.RemoveOffsetTimeOriginal; Latitude = source.Latitude; Longitude = source.Longitude; RemoveLocation = source.RemoveLocation;
+        RemoveOffsetTimeOriginal = source.RemoveOffsetTimeOriginal; Latitude = source.Latitude; Longitude = source.Longitude; Altitude = source.Altitude; RemoveAltitude = source.RemoveAltitude; RemoveLocation = source.RemoveLocation;
     }
 
     public void Clear()
@@ -36,6 +37,8 @@ public sealed class MetadataPatch
         RemoveOffsetTimeOriginal = false;
         Latitude = null;
         Longitude = null;
+        Altitude = null;
+        RemoveAltitude = false;
         RemoveLocation = false;
     }
 }

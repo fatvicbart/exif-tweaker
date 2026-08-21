@@ -55,7 +55,8 @@ public sealed class ExifToolService
         if (patch.RemoveLocation)
         {
             args.Add("-GPSLatitude="); args.Add("-GPSLongitude=");
-            args.Add("-GPSLatitudeRef="); args.Add("-GPSLongitudeRef="); args.Add("-GPSAltitude=");
+            args.Add("-GPSLatitudeRef="); args.Add("-GPSLongitudeRef=");
+            args.Add("-GPSAltitude="); args.Add("-GPSAltitudeRef=");
         }
         else if (patch.HasLocationChange && item.EffectiveLatitude is double lat && item.EffectiveLongitude is double lon)
         {
@@ -64,6 +65,16 @@ public sealed class ExifToolService
             args.Add($"-GPSLongitude={lon.ToString(CultureInfo.InvariantCulture)}");
             args.Add($"-GPSLatitudeRef={(lat < 0 ? "S" : "N")}");
             args.Add($"-GPSLongitudeRef={(lon < 0 ? "W" : "E")}");
+            if (patch.RemoveAltitude)
+            {
+                args.Add("-GPSAltitude=");
+                args.Add("-GPSAltitudeRef=");
+            }
+            else if (item.EffectiveAltitude is double altitude)
+            {
+                args.Add($"-GPSAltitude={Math.Abs(altitude).ToString(CultureInfo.InvariantCulture)}");
+                args.Add($"-GPSAltitudeRef={(altitude < 0 ? 1 : 0)}");
+            }
         }
 
         args.Add(item.FilePath);

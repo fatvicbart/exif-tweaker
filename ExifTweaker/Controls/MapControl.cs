@@ -8,6 +8,8 @@ public sealed class MapLocationChangedEventArgs(double latitude, double longitud
     public double Longitude { get; } = longitude;
 }
 
+public sealed record MapMarker(double Latitude, double Longitude, string Label, bool IsActive);
+
 public sealed partial class MapControl : UserControl
 {
     public event EventHandler<MapLocationChangedEventArgs>? LocationChanged;
@@ -23,13 +25,19 @@ public sealed partial class MapControl : UserControl
     }
 
     public async Task InitializeAsync() { await browser.EnsureCoreWebView2Async(); browser.NavigateToString(Html); }
-    public async Task SetMarkerAsync(double latitude, double longitude)
+
+    public Task SetMarkerAsync(double latitude, double longitude) =>
+        SetMarkersAsync(new[] { new MapMarker(latitude, longitude, string.Empty, true) });
+
+    public async Task SetMarkersAsync(IReadOnlyList<MapMarker> markers)
     {
-        if (browser.CoreWebView2 is not null) await browser.ExecuteScriptAsync($"setMarker({latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
+        if (browser.CoreWebView2 is null) return;
+        var payload = JsonSerializer.Serialize(markers);
+        await browser.ExecuteScriptAsync($"setMarkers({payload});");
     }
 
     private sealed record MapPoint(double Latitude, double Longitude);
     private const string Html = """
-<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>html,body,#map{height:100%;margin:0}</style></head><body><div id="map"></div><script>const map=L.map("map").setView([48.8566,2.3522],5);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);let marker;function setMarker(a,b){if(marker)marker.setLatLng([a,b]);else marker=L.marker([a,b]).addTo(map);map.setView([a,b],13)}map.on("click",e=>{setMarker(e.latlng.lat,e.latlng.lng);window.chrome.webview.postMessage(JSON.stringify({Latitude:e.latlng.lat,Longitude:e.latlng.lng}))});</script></body></html>
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"><script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script><style>html,body,#map{height:100%;margin:0}.active{filter:hue-rotate(135deg) saturate(1.5)}</style></head><body><div id="map"></div><script>const map=L.map("map").setView([48.8566,2.3522],5);L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"OpenStreetMap"}).addTo(map);let layer=L.layerGroup().addTo(map);function setMarkers(points){layer.clearLayers();const bounds=[];for(const p of points){const m=L.marker([p.Latitude,p.Longitude],{title:p.Label||""}).addTo(layer);if(p.Label)m.bindTooltip(p.Label);if(p.IsActive&&m._icon)m._icon.classList.add("active");bounds.push([p.Latitude,p.Longitude]);}if(bounds.length===1)map.setView(bounds[0],13);else if(bounds.length>1)map.fitBounds(bounds,{padding:[24,24]});}function setMarker(a,b){setMarkers([{Latitude:a,Longitude:b,Label:"",IsActive:true}]);}map.on("click",e=>{setMarker(e.latlng.lat,e.latlng.lng);window.chrome.webview.postMessage(JSON.stringify({Latitude:e.latlng.lat,Longitude:e.latlng.lng}))});</script></body></html>
 """;
 }

@@ -3,8 +3,12 @@ using ExifTweaker.Models;
 
 namespace ExifTweaker.Services;
 
-public sealed record MetadataApplyPreview(int FileCount, int DateChanges, int LocationChanges, int OffsetChanges);
-public sealed record MetadataApplyFileResult(string FilePath, bool Succeeded, string? Error);
+public sealed record MetadataApplyPreviewFile(string FilePath, string FileType, string OriginalDate, string EffectiveDate, string OriginalLocation, string EffectiveLocation, bool BackupAvailable);
+public sealed record MetadataApplyPreview(int FileCount, int DateChanges, int LocationChanges, int LocationRemovals, int OffsetChanges, bool BackupOriginals, IReadOnlyList<MetadataApplyPreviewFile> Files)
+{
+    public string FileTypeSummary => string.Join(", ", Files.GroupBy(file => string.IsNullOrWhiteSpace(file.FileType) ? "Unknown" : file.FileType).OrderByDescending(group => group.Count()).ThenBy(group => group.Key).Select(group => $"{group.Key} {group.Count()}"));
+}
+public sealed record MetadataApplyFileResult(string FilePath, bool Succeeded, string? Error, string? FileType = null, bool BackupAvailable = false);
 public sealed record MetadataApplyResult(IReadOnlyList<MetadataApplyFileResult> Files)
 {
     public int SucceededCount => Files.Count(file => file.Succeeded);
@@ -42,7 +46,22 @@ public sealed class MetadataService
     public MetadataApplyPreview Preview(IEnumerable<PhotoItem> items)
     {
         var changed = items.Where(item => item.PendingChanges.HasChanges).ToList();
-        return new MetadataApplyPreview(changed.Count, changed.Count(item => item.PendingChanges.HasDateChange), changed.Count(item => item.PendingChanges.HasLocationChange), changed.Count(item => item.PendingChanges.HasOffsetChange));
+        var files = changed.Select(item => new MetadataApplyPreviewFile(
+            item.FilePath,
+            item.Original.FileType ?? Path.GetExtension(item.FilePath).TrimStart('.').ToUpperInvariant(),
+            FormatDate(item.Original.CaptureDate),
+            FormatDate(item.EffectiveCaptureDate),
+            FormatLocation(item.Original.Latitude, item.Original.Longitude, item.Original.Altitude),
+            FormatLocation(item.EffectiveLatitude, item.EffectiveLongitude, item.EffectiveAltitude),
+            File.Exists(item.FilePath + "_original"))).ToList();
+        return new MetadataApplyPreview(
+            changed.Count,
+            changed.Count(item => item.PendingChanges.HasDateChange),
+            changed.Count(item => item.PendingChanges.HasLocationChange),
+            changed.Count(item => item.PendingChanges.RemoveLocation),
+            changed.Count(item => item.PendingChanges.HasOffsetChange),
+            _settings.BackupStrategy == BackupStrategy.ExifToolOriginal,
+            files);
     }
 
     public async Task<MetadataApplyResult> RestoreBackupsAsync(IEnumerable<PhotoItem> items, CancellationToken ct = default)
@@ -50,9 +69,9 @@ public sealed class MetadataService
         var results = new List<MetadataApplyFileResult>();
         foreach (var item in items)
         {
-            try { await RestoreBackupAsync(item, ct); results.Add(new MetadataApplyFileResult(item.FilePath, true, null)); }
+            try { await RestoreBackupAsync(item, ct); results.Add(new MetadataApplyFileResult(item.FilePath, true, null, item.Original.FileType, File.Exists(item.FilePath + "_original"))); }
             catch (OperationCanceledException) { throw; }
-            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error($"Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message)); }
+            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error($"Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original"))); }
         }
         return new MetadataApplyResult(results);
     }
@@ -84,17 +103,25 @@ public sealed class MetadataService
                 item.PendingChanges.Clear();
                 item.Error = null;
                 item.NotifyChanged();
-                results.Add(new MetadataApplyFileResult(item.FilePath, true, null));
+                results.Add(new MetadataApplyFileResult(item.FilePath, true, null, item.Original.FileType, File.Exists(item.FilePath + "_original")));
             }
             catch (OperationCanceledException) { throw; }
             catch (Exception ex)
             {
                 item.Error = ex.Message;
                 AppLogger.Error($"Unable to apply metadata to {item.FilePath}.", ex);
-                results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message));
+                results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original")));
             }
             progress?.Report(changed.Count == 0 ? 100 : (int)(100d * (index + 1) / changed.Count));
         }
         return new MetadataApplyResult(results);
+    }
+    private static string FormatDate(DateTime? value) => value?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
+
+    private static string FormatLocation(double? latitude, double? longitude, double? altitude)
+    {
+        if (!latitude.HasValue || !longitude.HasValue) return string.Empty;
+        var gps = $"{latitude.Value:F6}, {longitude.Value:F6}";
+        return altitude.HasValue ? $"{gps}, {altitude.Value:F2} m" : gps;
     }
 }
