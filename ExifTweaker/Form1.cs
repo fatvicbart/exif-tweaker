@@ -39,7 +39,11 @@ public partial class Form1 : Form
         splitContainer1.Panel2.Controls.Add(_map);
         _map.BringToFront();
         _map.LocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
-        Shown += async (_, _) => await _map.InitializeAsync();
+        Shown += async (_, _) =>
+        {
+            try { await _map.InitializeAsync(); }
+            catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); MessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        };
         _session.PropertyChanged += (_, _) => UpdateSessionCaption();
         UpdateSessionCaption();
     }
@@ -48,25 +52,10 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
-        var hasLatitude = !string.IsNullOrWhiteSpace(tLat.Text);
-        var hasLongitude = !string.IsNullOrWhiteSpace(tLon.Text);
-        if (hasLatitude != hasLongitude || (hasLatitude && (!TryCoordinate(tLat.Text, out var lat) || !TryCoordinate(tLon.Text, out var lon) || !IsValidCoordinate(lat, lon))))
-        {
-            MessageBox.Show("Latitude/longitude invalid.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
-
         _history.Capture(selected);
         foreach (var photo in selected)
         {
             photo.PendingChanges.CaptureDate = dateTimePicker1.Value;
-            if (hasLatitude)
-            {
-                TryCoordinate(tLat.Text, out var latitude);
-                TryCoordinate(tLon.Text, out var longitude);
-                photo.PendingChanges.Latitude = latitude;
-                photo.PendingChanges.Longitude = longitude;
-            }
             photo.NotifyChanged();
         }
         _session.NotifyChanged();
@@ -129,6 +118,8 @@ public partial class Form1 : Form
             var ct = StartOperation();
             var progress = new Progress<int>(value => pgb.Value = value);
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
+            _history.Clear();
+            _session.NotifyChanged();
             if (result.FailedCount > 0)
                 MessageBox.Show($"{result.FailedCount} file(s) could not be updated. See their status and the application log.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
@@ -194,6 +185,7 @@ public partial class Form1 : Form
         commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
         commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
         commands.Items.Add("Remove GPS", null, (_, _) => RemoveGpsSelected());
+        commands.Items.Add("Set GPS", null, (_, _) => StageGpsFromFields());
         commands.Items.Add("Map", null, (_, _) => ToggleMap());
         commands.Items.Add("All", null, (_, _) => ApplyFilter(_ => true));
         commands.Items.Add("Modified", null, (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges));
@@ -205,6 +197,19 @@ public partial class Form1 : Form
     }
 
     private void ApplyFilter(Func<PhotoItem, bool> predicate) => _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(predicate).ToList());
+
+    private void StageGpsFromFields()
+    {
+        if (!TryCoordinate(tLat.Text, out var latitude) || !TryCoordinate(tLon.Text, out var longitude) || !IsValidCoordinate(latitude, longitude))
+        {
+            MessageBox.Show("Latitude/longitude invalid.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
+        var selected = SelectedItems;
+        _history.Capture(selected);
+        _locations.SetLocation(selected, latitude, longitude);
+        _session.NotifyChanged();
+    }
 
     private void ToggleMap()
     {

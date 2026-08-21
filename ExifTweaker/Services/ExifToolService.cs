@@ -75,7 +75,14 @@ public sealed class ExifToolService
         var backup = item.FilePath + "_original";
         if (!File.Exists(backup)) throw new FileNotFoundException("ExifTool backup was not found.", backup);
         ct.ThrowIfCancellationRequested();
-        File.Copy(backup, item.FilePath, overwrite: true);
+        var temporary = item.FilePath + ".restore-" + Guid.NewGuid().ToString("N") + ".tmp";
+        try
+        {
+            File.Copy(backup, temporary, overwrite: false);
+            ct.ThrowIfCancellationRequested();
+            File.Move(temporary, item.FilePath, overwrite: true);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }, ct);
 
     private async Task<IReadOnlyDictionary<string, PhotoMetadata>> ReadBatchAsync(IEnumerable<string> files, CancellationToken ct)
