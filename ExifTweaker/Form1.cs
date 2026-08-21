@@ -9,16 +9,19 @@ namespace ExifTweaker;
 public partial class Form1 : Form
 {
     private readonly BindingList<PhotoItem> _files = new();
+    private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
-    private readonly ExifToolService _exifTool = new();
-    private readonly GeocodingService _geocoding = new(new AppSettings());
+    private readonly MetadataService _metadata;
+    private readonly GeocodingService _geocoding;
     private CancellationTokenSource? _operationCts;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
-        .Select(r => r.DataBoundItem as PhotoItem).Where(x => x is not null).Cast<PhotoItem>().ToList();
+        .Select(row => row.DataBoundItem as PhotoItem).Where(item => item is not null).Cast<PhotoItem>().ToList();
 
     public Form1()
     {
+        _metadata = new MetadataService(new ExifToolService(_settings.ExifToolPath), _settings);
+        _geocoding = new GeocodingService(_settings);
         InitializeComponent();
         dgv.AutoGenerateColumns = true;
         dgv.DataSource = new BindingSource { DataSource = _files };
@@ -28,19 +31,24 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
-        if (!TryCoordinate(tLat.Text, out var lat) || !TryCoordinate(tLon.Text, out var lon))
+        var hasLatitude = !string.IsNullOrWhiteSpace(tLat.Text);
+        var hasLongitude = !string.IsNullOrWhiteSpace(tLon.Text);
+        if (hasLatitude != hasLongitude || (hasLatitude && (!TryCoordinate(tLat.Text, out var lat) || !TryCoordinate(tLon.Text, out var lon) || !IsValidCoordinate(lat, lon))))
         {
             MessageBox.Show("Latitude/longitude invalid.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
 
-        // Phase 0-4 compatibility: preserve the current Change button behaviour,
-        // but route it through PendingChanges + ExifTool instead of ExifLibrary.
         foreach (var photo in selected)
         {
             photo.PendingChanges.CaptureDate = dateTimePicker1.Value;
-            photo.PendingChanges.Latitude = lat;
-            photo.PendingChanges.Longitude = lon;
+            if (hasLatitude)
+            {
+                TryCoordinate(tLat.Text, out var latitude);
+                TryCoordinate(tLon.Text, out var longitude);
+                photo.PendingChanges.Latitude = latitude;
+                photo.PendingChanges.Longitude = longitude;
+            }
             photo.NotifyChanged();
         }
         await ApplyPendingChangesAsync(selected);
@@ -48,7 +56,7 @@ public partial class Form1 : Form
 
     private async void button2_Click(object sender, EventArgs e)
     {
-        using var dlg = new OpenFileDialog
+        using var dialog = new OpenFileDialog
         {
             InitialDirectory = Environment.CurrentDirectory,
             Filter = _discovery.DialogFilter,
@@ -57,7 +65,7 @@ public partial class Form1 : Form
             Multiselect = true,
             Title = "Select photos and videos..."
         };
-        if (dlg.ShowDialog() == DialogResult.OK) await AddFilesAsync(dlg.FileNames);
+        if (dialog.ShowDialog() == DialogResult.OK) await AddFilesAsync(dialog.FileNames);
     }
 
     private void Form1_DragEnter(object sender, DragEventArgs e)
@@ -75,29 +83,19 @@ public partial class Form1 : Form
         try
         {
             SetBusy(true);
-            _operationCts?.Cancel();
-            _operationCts = new CancellationTokenSource();
-            var ct = _operationCts.Token;
-            var existing = _files.Select(x => x.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var discovered = await Task.Run(() => _discovery.Discover(paths), ct);
-            var newPaths = discovered.Where(x => !existing.Contains(x)).ToList();
+            var ct = StartOperation();
+            var discovery = await _discovery.DiscoverAsync(paths, _settings.RecursiveImport, ct);
+            foreach (var error in discovery.Errors) AppLogger.Info(error);
+            var existing = _files.Select(item => item.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var newPaths = discovery.Files.Where(path => !existing.Contains(path)).ToList();
             if (newPaths.Count == 0) return;
-
-            pgb.Value = 10;
-            var metadata = await _exifTool.ReadAsync(newPaths, ct);
-            for (var i = 0; i < newPaths.Count; i++)
-            {
-                var path = newPaths[i];
-                var item = new PhotoItem(path);
-                if (metadata.TryGetValue(Path.GetFullPath(path), out var md)) item.Original = md;
-                else item.Error = "Metadata not returned by ExifTool";
-                _files.Add(item);
-                pgb.Value = Math.Min(99, 10 + (int)(89d * (i + 1) / newPaths.Count));
-            }
-            pgb.Value = 100;
+            pgb.Value = 5;
+            var progress = new Progress<int>(value => pgb.Value = Math.Clamp(5 + value * 95 / 100, 0, 100));
+            var items = await _metadata.LoadAsync(newPaths, progress, ct);
+            foreach (var item in items) _files.Add(item);
         }
-        catch (OperationCanceledException) { }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Import error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (OperationCanceledException) { AppLogger.Info("Import cancelled."); }
+        catch (Exception ex) { AppLogger.Error("Import failed.", ex); MessageBox.Show(ex.Message, "Import error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally { SetBusy(false); }
     }
 
@@ -106,25 +104,13 @@ public partial class Form1 : Form
         try
         {
             SetBusy(true);
-            _operationCts?.Cancel();
-            _operationCts = new CancellationTokenSource();
-            var ct = _operationCts.Token;
-            var changed = photos.Where(p => p.PendingChanges.HasChanges).ToList();
-            for (var i = 0; i < changed.Count; i++)
-            {
-                var photo = changed[i];
-                try
-                {
-                    await _exifTool.WriteAsync(photo, backupOriginal: true, ct);
-                    var refreshed = await _exifTool.ReadAsync(new[] { photo.FilePath }, ct);
-                    if (refreshed.TryGetValue(Path.GetFullPath(photo.FilePath), out var md)) photo.Original = md;
-                    photo.PendingChanges.Clear(); photo.Error = null; photo.NotifyChanged();
-                }
-                catch (Exception ex) { photo.Error = ex.Message; }
-                pgb.Value = changed.Count == 0 ? 100 : (int)(100d * (i + 1) / changed.Count);
-            }
+            var ct = StartOperation();
+            var progress = new Progress<int>(value => pgb.Value = value);
+            var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
+            if (result.FailedCount > 0)
+                MessageBox.Show($"{result.FailedCount} file(s) could not be updated. See their status and the application log.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException) { AppLogger.Info("Apply cancelled."); }
         finally { SetBusy(false); }
     }
 
@@ -133,7 +119,7 @@ public partial class Form1 : Form
         try
         {
             SetBusy(true);
-            var results = await _geocoding.SearchAsync(tGPS.Text);
+            var results = await _geocoding.SearchAsync(tGPS.Text, StartOperation());
             var first = results.FirstOrDefault();
             if (first is null) { MessageBox.Show("No location found."); return; }
             tLat.Text = first.Latitude.ToString(CultureInfo.InvariantCulture);
@@ -141,7 +127,8 @@ public partial class Form1 : Form
             tName.Text = first.Name;
             tType.Text = first.Type;
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (OperationCanceledException) { AppLogger.Info("Geocoding cancelled."); }
+        catch (Exception ex) { AppLogger.Error("Geocoding failed.", ex); MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally { SetBusy(false); }
     }
 
@@ -167,9 +154,29 @@ public partial class Form1 : Form
 
     private void dgv_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
     {
-        if (sender is not DataGridView g || !g.RowHeadersVisible) return;
-        var r = new Rectangle(e.RowBounds.Left, e.RowBounds.Top, g.RowHeadersWidth, e.RowBounds.Height);
-        TextRenderer.DrawText(e.Graphics, e.RowIndex.ToString(), g.RowHeadersDefaultCellStyle.Font, r, g.RowHeadersDefaultCellStyle.ForeColor);
+        if (sender is not DataGridView grid || !grid.RowHeadersVisible) return;
+        var rectangle = new Rectangle(e.RowBounds.Left, e.RowBounds.Top, grid.RowHeadersWidth, e.RowBounds.Height);
+        TextRenderer.DrawText(e.Graphics, e.RowIndex.ToString(), grid.RowHeadersDefaultCellStyle.Font, rectangle, grid.RowHeadersDefaultCellStyle.ForeColor);
+    }
+
+    protected override bool ProcessCmdKey(ref Message message, Keys keyData)
+    {
+        if (keyData == Keys.Escape && _operationCts is { IsCancellationRequested: false }) { _operationCts.Cancel(); return true; }
+        return base.ProcessCmdKey(ref message, keyData);
+    }
+
+    protected override void OnFormClosing(FormClosingEventArgs e)
+    {
+        _operationCts?.Cancel();
+        base.OnFormClosing(e);
+    }
+
+    private CancellationToken StartOperation()
+    {
+        _operationCts?.Cancel();
+        _operationCts?.Dispose();
+        _operationCts = new CancellationTokenSource();
+        return _operationCts.Token;
     }
 
     private void SetBusy(bool busy)
@@ -181,4 +188,5 @@ public partial class Form1 : Form
     private static bool TryCoordinate(string value, out double result) =>
         double.TryParse(value, NumberStyles.Float, CultureInfo.CurrentCulture, out result) ||
         double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out result);
+    private static bool IsValidCoordinate(double latitude, double longitude) => latitude is >= -90 and <= 90 && longitude is >= -180 and <= 180;
 }

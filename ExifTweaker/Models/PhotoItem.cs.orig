@@ -16,7 +16,6 @@ public sealed class PhotoItem : INotifyPropertyChanged
     [Browsable(false)] public string? Error { get => _error; set { _error = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); } }
 
     public string Name => Path.GetFileNameWithoutExtension(FilePath);
-    public string FileName => Path.GetFileName(FilePath);
     public string Date => EffectiveCaptureDate?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
     public string City => Original.City ?? string.Empty;
     public string Country => Original.Country ?? string.Empty;
@@ -28,7 +27,6 @@ public sealed class PhotoItem : INotifyPropertyChanged
         (Original.CaptureDate.HasValue && PendingChanges.DateShift.HasValue ? Original.CaptureDate.Value + PendingChanges.DateShift.Value : Original.CaptureDate);
     [Browsable(false)] public double? EffectiveLatitude => PendingChanges.RemoveLocation ? null : PendingChanges.Latitude ?? Original.Latitude;
     [Browsable(false)] public double? EffectiveLongitude => PendingChanges.RemoveLocation ? null : PendingChanges.Longitude ?? Original.Longitude;
-    [Browsable(false)] public TimeSpan? EffectiveOffset => PendingChanges.RemoveOffsetTimeOriginal ? null : PendingChanges.OffsetTimeOriginal ?? Original.Offset;
 
     public void NotifyChanged() => OnPropertyChanged(string.Empty);
     public event PropertyChangedEventHandler? PropertyChanged;
