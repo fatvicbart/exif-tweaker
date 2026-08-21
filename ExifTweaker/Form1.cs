@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using ExifTweaker.Infrastructure;
+using ExifTweaker.Controls;
 using ExifTweaker.Models;
 using ExifTweaker.Services;
 
@@ -12,6 +13,7 @@ public partial class Form1 : Form
     private readonly EditHistory _history = new();
     private readonly ThumbnailService _thumbnails = new();
     private readonly LocationEditorService _locations = new();
+    private readonly MapControl _map = new() { Visible = false };
     private readonly BindingSource _bindingSource = new();
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
@@ -34,6 +36,10 @@ public partial class Form1 : Form
         ConfigureGrid();
         bChange.Text = "STAGE";
         CreateCommands();
+        splitContainer1.Panel2.Controls.Add(_map);
+        _map.BringToFront();
+        _map.LocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
+        Shown += async (_, _) => await _map.InitializeAsync();
         _session.PropertyChanged += (_, _) => UpdateSessionCaption();
         UpdateSessionCaption();
     }
@@ -158,6 +164,7 @@ public partial class Form1 : Form
     private async void dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
     {
         if (e.RowIndex < 0 || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
+        if (_map.Visible && item.EffectiveLatitude is double latitude && item.EffectiveLongitude is double longitude) _ = _map.SetMarkerAsync(latitude, longitude);
         var image = await _thumbnails.GetAsync(item.FilePath, 1600);
         var previous = picBox.Image;
         picBox.Image = image;
@@ -187,6 +194,7 @@ public partial class Form1 : Form
         commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
         commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
         commands.Items.Add("Remove GPS", null, (_, _) => RemoveGpsSelected());
+        commands.Items.Add("Map", null, (_, _) => ToggleMap());
         commands.Items.Add("All", null, (_, _) => ApplyFilter(_ => true));
         commands.Items.Add("Modified", null, (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges));
         commands.Items.Add("No GPS", null, (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue));
@@ -197,6 +205,25 @@ public partial class Form1 : Form
     }
 
     private void ApplyFilter(Func<PhotoItem, bool> predicate) => _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(predicate).ToList());
+
+    private void ToggleMap()
+    {
+        _map.Visible = !_map.Visible;
+        if (_map.Visible) _map.BringToFront();
+        var active = SelectedItems.FirstOrDefault();
+        if (_map.Visible && active?.EffectiveLatitude is double latitude && active.EffectiveLongitude is double longitude) _ = _map.SetMarkerAsync(latitude, longitude);
+    }
+
+    private void SetLocationFromMap(double latitude, double longitude)
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0) return;
+        _history.Capture(selected);
+        _locations.SetLocation(selected, latitude, longitude);
+        tLat.Text = latitude.ToString(CultureInfo.InvariantCulture);
+        tLon.Text = longitude.ToString(CultureInfo.InvariantCulture);
+        _session.NotifyChanged();
+    }
 
     private void RemoveGpsSelected()
     {
