@@ -121,8 +121,8 @@ public partial class Form1 : Form
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
             _history.Clear();
             _session.NotifyChanged();
-            if (result.FailedCount > 0)
-                MessageBox.Show($"{result.FailedCount} file(s) could not be updated. See their status and the application log.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            using var report = new ApplyReportForm(result);
+            report.ShowDialog(this);
         }
         catch (OperationCanceledException) { AppLogger.Info("Apply cancelled."); }
         finally { SetBusy(false); }
