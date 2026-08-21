@@ -17,6 +17,10 @@
     <Content Include="exif.ico" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3065.39" />
+  </ItemGroup>
+
   <ItemGroup Condition="Exists('exiftool')">
     <Content Include="exiftool\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
