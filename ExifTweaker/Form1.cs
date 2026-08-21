@@ -186,7 +186,10 @@ public partial class Form1 : Form
         commands.Items.Add("Redo", null, (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); });
         commands.Items.Add("Reset selected", null, (_, _) => ResetPatches(SelectedItems));
         commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
+        commands.Items.Add("-1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(-1)));
         commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
+        commands.Items.Add("-1 minute", null, (_, _) => ShiftSelected(TimeSpan.FromMinutes(-1)));
+        commands.Items.Add("+1 minute", null, (_, _) => ShiftSelected(TimeSpan.FromMinutes(1)));
         commands.Items.Add("Remove GPS", null, (_, _) => RemoveGpsSelected());
         commands.Items.Add("Set GPS", null, (_, _) => StageGpsFromFields());
         commands.Items.Add("Map", null, (_, _) => ToggleMap());
