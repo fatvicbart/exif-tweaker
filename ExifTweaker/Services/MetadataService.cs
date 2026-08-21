@@ -45,6 +45,18 @@ public sealed class MetadataService
         return new MetadataApplyPreview(changed.Count, changed.Count(item => item.PendingChanges.HasDateChange), changed.Count(item => item.PendingChanges.HasLocationChange), changed.Count(item => item.PendingChanges.HasOffsetChange));
     }
 
+    public async Task<MetadataApplyResult> RestoreBackupsAsync(IEnumerable<PhotoItem> items, CancellationToken ct = default)
+    {
+        var results = new List<MetadataApplyFileResult>();
+        foreach (var item in items)
+        {
+            try { await RestoreBackupAsync(item, ct); results.Add(new MetadataApplyFileResult(item.FilePath, true, null)); }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error( Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message)); }
+        }
+        return new MetadataApplyResult(results);
+    }
+
     public async Task RestoreBackupAsync(PhotoItem item, CancellationToken ct = default)
     {
         await _exifTool.RestoreBackupAsync(item, ct);

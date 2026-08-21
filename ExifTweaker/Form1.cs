@@ -262,8 +262,16 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0 || MessageBox.Show("Restore selected files from their ExifTool backups?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
-        foreach (var item in selected) await _metadata.RestoreBackupAsync(item);
-        _session.NotifyChanged();
+        SetBusy(true);
+        try
+        {
+            var result = await _metadata.RestoreBackupsAsync(selected, StartOperation());
+            _session.NotifyChanged();
+            using var report = new ApplyReportForm(result) { Text = "Restore report" };
+            report.ShowDialog(this);
+        }
+        catch (OperationCanceledException) { AppLogger.Info("Restore cancelled."); }
+        finally { SetBusy(false); }
     }
 
     private void ConfigureGrid()
