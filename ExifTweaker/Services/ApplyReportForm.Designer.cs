@@ -64,3 +64,13 @@ partial class ApplyReportForm
         Controls.Add(summary);
         Name = "ApplyReportForm";
         StartPosition = FormStartPosition.CenterParent;
+        Text = "Apply report";
+        ((System.ComponentModel.ISupportInitialize)reportGrid).EndInit();
+        ResumeLayout(false);
+    }
+
+    #endregion
+
+    private System.Windows.Forms.Label summary;
+    private System.Windows.Forms.DataGridView reportGrid;
+}

@@ -87,3 +87,18 @@ partial class GeocodingSelectionForm
         CancelButton = cancelButton;
         ClientSize = new Size(700, 360);
         Controls.Add(resultsList);
+        Controls.Add(buttonsPanel);
+        Name = "GeocodingSelectionForm";
+        StartPosition = FormStartPosition.CenterParent;
+        Text = "Select location";
+        buttonsPanel.ResumeLayout(false);
+        ResumeLayout(false);
+    }
+
+    #endregion
+
+    private System.Windows.Forms.ListBox resultsList;
+    private System.Windows.Forms.Panel buttonsPanel;
+    private System.Windows.Forms.Button useLocationButton;
+    private System.Windows.Forms.Button cancelButton;
+}

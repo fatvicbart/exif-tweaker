@@ -46,3 +46,13 @@ partial class MapControl
         // MapControl
         // 
         Controls.Add(browser);
+        Name = "MapControl";
+        Size = new Size(400, 300);
+        ((System.ComponentModel.ISupportInitialize)browser).EndInit();
+        ResumeLayout(false);
+    }
+
+    #endregion
+
+    private Microsoft.Web.WebView2.WinForms.WebView2 browser;
+}

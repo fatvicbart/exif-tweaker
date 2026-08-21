@@ -52,7 +52,7 @@ public sealed class MetadataService
         {
             try { await RestoreBackupAsync(item, ct); results.Add(new MetadataApplyFileResult(item.FilePath, true, null)); }
             catch (OperationCanceledException) { throw; }
-            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error( Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message)); }
+            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error($"Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message)); }
         }
         return new MetadataApplyResult(results);
     }
