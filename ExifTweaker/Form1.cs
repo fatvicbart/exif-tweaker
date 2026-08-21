@@ -11,6 +11,7 @@ public partial class Form1 : Form
     private readonly ImportSession _session = new();
     private readonly EditHistory _history = new();
     private readonly ThumbnailService _thumbnails = new();
+    private readonly LocationEditorService _locations = new();
     private readonly BindingSource _bindingSource = new();
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
@@ -185,6 +186,7 @@ public partial class Form1 : Form
         commands.Items.Add("Reset selected", null, (_, _) => ResetPatches(SelectedItems));
         commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
         commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
+        commands.Items.Add("Remove GPS", null, (_, _) => RemoveGpsSelected());
         commands.Items.Add("All", null, (_, _) => ApplyFilter(_ => true));
         commands.Items.Add("Modified", null, (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges));
         commands.Items.Add("No GPS", null, (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue));
@@ -195,6 +197,14 @@ public partial class Form1 : Form
     }
 
     private void ApplyFilter(Func<PhotoItem, bool> predicate) => _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(predicate).ToList());
+
+    private void RemoveGpsSelected()
+    {
+        var selected = SelectedItems;
+        _history.Capture(selected);
+        _locations.RemoveLocation(selected);
+        _session.NotifyChanged();
+    }
 
     private void ShiftSelected(TimeSpan shift)
     {
