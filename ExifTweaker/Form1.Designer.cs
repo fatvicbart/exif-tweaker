@@ -49,8 +49,39 @@ namespace ExifTweaker
             tName = new TextBox();
             splitContainer1 = new SplitContainer();
             dgv = new DataGridView();
+            fileNameColumn = new DataGridViewTextBoxColumn();
+            dateColumn = new DataGridViewTextBoxColumn();
+            latitudeColumn = new DataGridViewTextBoxColumn();
+            longitudeColumn = new DataGridViewTextBoxColumn();
+            cityColumn = new DataGridViewTextBoxColumn();
+            countryColumn = new DataGridViewTextBoxColumn();
+            statusColumn = new DataGridViewTextBoxColumn();
             picBox = new PictureBox();
             pgb = new ProgressBar();
+            mapControl = new ExifTweaker.Controls.MapControl();
+            commands = new ToolStrip();
+            applyCommand = new ToolStripButton();
+            undoCommand = new ToolStripButton();
+            redoCommand = new ToolStripButton();
+            commandSeparator1 = new ToolStripSeparator();
+            resetSelectedCommand = new ToolStripButton();
+            resetAllCommand = new ToolStripButton();
+            commandSeparator2 = new ToolStripSeparator();
+            minusHourCommand = new ToolStripButton();
+            plusHourCommand = new ToolStripButton();
+            minusMinuteCommand = new ToolStripButton();
+            plusMinuteCommand = new ToolStripButton();
+            commandSeparator3 = new ToolStripSeparator();
+            removeGpsCommand = new ToolStripButton();
+            setGpsCommand = new ToolStripButton();
+            mapCommand = new ToolStripButton();
+            commandSeparator4 = new ToolStripSeparator();
+            allFilterCommand = new ToolStripButton();
+            modifiedFilterCommand = new ToolStripButton();
+            noGpsFilterCommand = new ToolStripButton();
+            errorsFilterCommand = new ToolStripButton();
+            commandSeparator5 = new ToolStripSeparator();
+            restoreBackupCommand = new ToolStripButton();
             main.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
             tableLayoutPanel3.SuspendLayout();
@@ -60,6 +91,7 @@ namespace ExifTweaker
             splitContainer1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgv).BeginInit();
             ((System.ComponentModel.ISupportInitialize)picBox).BeginInit();
+            commands.SuspendLayout();
             SuspendLayout();
             // 
             // bChange
@@ -276,6 +308,7 @@ namespace ExifTweaker
             // splitContainer1.Panel2
             // 
             splitContainer1.Panel2.Controls.Add(picBox);
+            splitContainer1.Panel2.Controls.Add(mapControl);
             splitContainer1.Size = new Size(615, 215);
             splitContainer1.SplitterDistance = 324;
             splitContainer1.SplitterWidth = 5;
@@ -290,6 +323,7 @@ namespace ExifTweaker
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells;
             dgv.BackgroundColor = SystemColors.ControlLight;
             dgv.BorderStyle = BorderStyle.Fixed3D;
+            dgv.AutoGenerateColumns = false;
             dataGridViewCellStyle1.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle1.BackColor = SystemColors.Control;
             dataGridViewCellStyle1.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -299,6 +333,49 @@ namespace ExifTweaker
             dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
             dgv.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
+            dgv.Columns.AddRange(new DataGridViewColumn[] { fileNameColumn, dateColumn, latitudeColumn, longitudeColumn, cityColumn, countryColumn, statusColumn });
+            // 
+            // fileNameColumn
+            // 
+            fileNameColumn.DataPropertyName = "FileName";
+            fileNameColumn.HeaderText = "FileName";
+            fileNameColumn.Name = "FileName";
+            // 
+            // dateColumn
+            // 
+            dateColumn.DataPropertyName = "Date";
+            dateColumn.HeaderText = "Date";
+            dateColumn.Name = "Date";
+            // 
+            // latitudeColumn
+            // 
+            latitudeColumn.DataPropertyName = "Latitude";
+            latitudeColumn.HeaderText = "Latitude";
+            latitudeColumn.Name = "Latitude";
+            // 
+            // longitudeColumn
+            // 
+            longitudeColumn.DataPropertyName = "Longitude";
+            longitudeColumn.HeaderText = "Longitude";
+            longitudeColumn.Name = "Longitude";
+            // 
+            // cityColumn
+            // 
+            cityColumn.DataPropertyName = "City";
+            cityColumn.HeaderText = "City";
+            cityColumn.Name = "City";
+            // 
+            // countryColumn
+            // 
+            countryColumn.DataPropertyName = "Country";
+            countryColumn.HeaderText = "Country";
+            countryColumn.Name = "Country";
+            // 
+            // statusColumn
+            // 
+            statusColumn.DataPropertyName = "Status";
+            statusColumn.HeaderText = "Status";
+            statusColumn.Name = "Status";
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle2.BackColor = SystemColors.Window;
             dataGridViewCellStyle2.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -311,6 +388,7 @@ namespace ExifTweaker
             dgv.Location = new Point(0, 0);
             dgv.Margin = new Padding(4, 3, 4, 3);
             dgv.Name = "dgv";
+            dgv.MultiSelect = true;
             dataGridViewCellStyle3.Alignment = DataGridViewContentAlignment.MiddleCenter;
             dataGridViewCellStyle3.BackColor = SystemColors.Control;
             dataGridViewCellStyle3.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -328,6 +406,9 @@ namespace ExifTweaker
             // 
             // picBox
             // 
+            mapControl.Dock = DockStyle.Fill;
+            mapControl.Name = "mapControl";
+            mapControl.Visible = false;
             picBox.BackColor = SystemColors.ControlLight;
             picBox.BorderStyle = BorderStyle.Fixed3D;
             picBox.Dock = DockStyle.Fill;
@@ -348,6 +429,119 @@ namespace ExifTweaker
             pgb.Size = new Size(615, 17);
             pgb.TabIndex = 5;
             // 
+            // commands
+            // 
+            commands.Dock = DockStyle.Top;
+            commands.GripStyle = ToolStripGripStyle.Hidden;
+            commands.Items.AddRange(new ToolStripItem[] { applyCommand, undoCommand, redoCommand, commandSeparator1, resetSelectedCommand, resetAllCommand, commandSeparator2, minusHourCommand, plusHourCommand, minusMinuteCommand, plusMinuteCommand, commandSeparator3, removeGpsCommand, setGpsCommand, mapCommand, commandSeparator4, allFilterCommand, modifiedFilterCommand, noGpsFilterCommand, errorsFilterCommand, commandSeparator5, restoreBackupCommand });
+            commands.Location = new Point(0, 0);
+            commands.Name = "commands";
+            commands.Size = new Size(623, 25);
+            commands.TabIndex = 4;
+            commands.Text = "commands";
+            // 
+            // applyCommand
+            // 
+            applyCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            applyCommand.Name = "applyCommand";
+            applyCommand.Text = "Apply";
+            // 
+            // undoCommand
+            // 
+            undoCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            undoCommand.Name = "undoCommand";
+            undoCommand.Text = "Undo";
+            // 
+            // redoCommand
+            // 
+            redoCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            redoCommand.Name = "redoCommand";
+            redoCommand.Text = "Redo";
+            // 
+            // resetSelectedCommand
+            // 
+            resetSelectedCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            resetSelectedCommand.Name = "resetSelectedCommand";
+            resetSelectedCommand.Text = "Reset selected";
+            // 
+            // resetAllCommand
+            // 
+            resetAllCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            resetAllCommand.Name = "resetAllCommand";
+            resetAllCommand.Text = "Reset all";
+            // 
+            // minusHourCommand
+            // 
+            minusHourCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            minusHourCommand.Name = "minusHourCommand";
+            minusHourCommand.Text = "-1 hour";
+            // 
+            // plusHourCommand
+            // 
+            plusHourCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            plusHourCommand.Name = "plusHourCommand";
+            plusHourCommand.Text = "+1 hour";
+            // 
+            // minusMinuteCommand
+            // 
+            minusMinuteCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            minusMinuteCommand.Name = "minusMinuteCommand";
+            minusMinuteCommand.Text = "-1 minute";
+            // 
+            // plusMinuteCommand
+            // 
+            plusMinuteCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            plusMinuteCommand.Name = "plusMinuteCommand";
+            plusMinuteCommand.Text = "+1 minute";
+            // 
+            // removeGpsCommand
+            // 
+            removeGpsCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            removeGpsCommand.Name = "removeGpsCommand";
+            removeGpsCommand.Text = "Remove GPS";
+            // 
+            // setGpsCommand
+            // 
+            setGpsCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            setGpsCommand.Name = "setGpsCommand";
+            setGpsCommand.Text = "Set GPS";
+            // 
+            // mapCommand
+            // 
+            mapCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            mapCommand.Name = "mapCommand";
+            mapCommand.Text = "Map";
+            // 
+            // allFilterCommand
+            // 
+            allFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            allFilterCommand.Name = "allFilterCommand";
+            allFilterCommand.Text = "All";
+            // 
+            // modifiedFilterCommand
+            // 
+            modifiedFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            modifiedFilterCommand.Name = "modifiedFilterCommand";
+            modifiedFilterCommand.Text = "Modified";
+            // 
+            // noGpsFilterCommand
+            // 
+            noGpsFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            noGpsFilterCommand.Name = "noGpsFilterCommand";
+            noGpsFilterCommand.Text = "No GPS";
+            // 
+            // errorsFilterCommand
+            // 
+            errorsFilterCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            errorsFilterCommand.Name = "errorsFilterCommand";
+            errorsFilterCommand.Text = "Errors";
+            // 
+            // restoreBackupCommand
+            // 
+            restoreBackupCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
+            restoreBackupCommand.Name = "restoreBackupCommand";
+            restoreBackupCommand.Text = "Restore backup";
+            // 
             // 
             // Form1
             // 
@@ -356,6 +550,7 @@ namespace ExifTweaker
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(623, 336);
             Controls.Add(main);
+            Controls.Add(commands);
             Icon = (Icon)resources.GetObject("$this.Icon");
             Margin = new Padding(4, 3, 4, 3);
             MinimumSize = new Size(639, 375);
@@ -374,6 +569,8 @@ namespace ExifTweaker
             splitContainer1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgv).EndInit();
             ((System.ComponentModel.ISupportInitialize)picBox).EndInit();
+            commands.ResumeLayout(false);
+            commands.PerformLayout();
             ResumeLayout(false);
 
         }
@@ -392,6 +589,13 @@ namespace ExifTweaker
         private System.Windows.Forms.TextBox tGPS;
         private System.Windows.Forms.TextBox tName;
         private System.Windows.Forms.DataGridView dgv;
+        private System.Windows.Forms.DataGridViewTextBoxColumn fileNameColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn dateColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn latitudeColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn longitudeColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn cityColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn countryColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn statusColumn;
         private System.Windows.Forms.TextBox tType;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label2;
@@ -399,5 +603,29 @@ namespace ExifTweaker
         private System.Windows.Forms.PictureBox picBox;
         private System.Windows.Forms.SplitContainer splitContainer1;
         private System.Windows.Forms.ProgressBar pgb;
+        private ExifTweaker.Controls.MapControl mapControl;
+        private System.Windows.Forms.ToolStrip commands;
+        private System.Windows.Forms.ToolStripButton applyCommand;
+        private System.Windows.Forms.ToolStripButton undoCommand;
+        private System.Windows.Forms.ToolStripButton redoCommand;
+        private System.Windows.Forms.ToolStripSeparator commandSeparator1;
+        private System.Windows.Forms.ToolStripButton resetSelectedCommand;
+        private System.Windows.Forms.ToolStripButton resetAllCommand;
+        private System.Windows.Forms.ToolStripSeparator commandSeparator2;
+        private System.Windows.Forms.ToolStripButton minusHourCommand;
+        private System.Windows.Forms.ToolStripButton plusHourCommand;
+        private System.Windows.Forms.ToolStripButton minusMinuteCommand;
+        private System.Windows.Forms.ToolStripButton plusMinuteCommand;
+        private System.Windows.Forms.ToolStripSeparator commandSeparator3;
+        private System.Windows.Forms.ToolStripButton removeGpsCommand;
+        private System.Windows.Forms.ToolStripButton setGpsCommand;
+        private System.Windows.Forms.ToolStripButton mapCommand;
+        private System.Windows.Forms.ToolStripSeparator commandSeparator4;
+        private System.Windows.Forms.ToolStripButton allFilterCommand;
+        private System.Windows.Forms.ToolStripButton modifiedFilterCommand;
+        private System.Windows.Forms.ToolStripButton noGpsFilterCommand;
+        private System.Windows.Forms.ToolStripButton errorsFilterCommand;
+        private System.Windows.Forms.ToolStripSeparator commandSeparator5;
+        private System.Windows.Forms.ToolStripButton restoreBackupCommand;
     }
 }

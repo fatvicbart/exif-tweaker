@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Microsoft.Web.WebView2.WinForms;
 
 namespace ExifTweaker.Controls;
 
@@ -9,25 +8,24 @@ public sealed class MapLocationChangedEventArgs(double latitude, double longitud
     public double Longitude { get; } = longitude;
 }
 
-public sealed class MapControl : UserControl
+public sealed partial class MapControl : UserControl
 {
-    private readonly WebView2 _browser = new() { Dock = DockStyle.Fill };
     public event EventHandler<MapLocationChangedEventArgs>? LocationChanged;
 
     public MapControl()
     {
-        Controls.Add(_browser);
-        _browser.WebMessageReceived += (_, args) =>
+        InitializeComponent();
+        browser.WebMessageReceived += (_, args) =>
         {
             try { var point = JsonSerializer.Deserialize<MapPoint>(args.TryGetWebMessageAsString()); if (point is not null) LocationChanged?.Invoke(this, new MapLocationChangedEventArgs(point.Latitude, point.Longitude)); }
             catch (JsonException) { }
         };
     }
 
-    public async Task InitializeAsync() { await _browser.EnsureCoreWebView2Async(); _browser.NavigateToString(Html); }
+    public async Task InitializeAsync() { await browser.EnsureCoreWebView2Async(); browser.NavigateToString(Html); }
     public async Task SetMarkerAsync(double latitude, double longitude)
     {
-        if (_browser.CoreWebView2 is not null) await _browser.ExecuteScriptAsync($"setMarker({latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
+        if (browser.CoreWebView2 is not null) await browser.ExecuteScriptAsync($"setMarker({latitude.ToString(System.Globalization.CultureInfo.InvariantCulture)}, {longitude.ToString(System.Globalization.CultureInfo.InvariantCulture)});");
     }
 
     private sealed record MapPoint(double Latitude, double Longitude);

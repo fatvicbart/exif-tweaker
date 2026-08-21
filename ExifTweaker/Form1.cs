@@ -14,9 +14,8 @@ public partial class Form1 : Form
     private readonly SessionController _sessionController;
     private readonly ThumbnailService _thumbnails = new();
     private readonly LocationEditorService _locations = new();
-    private readonly MapControl _map = new() { Visible = false };
+    private MapControl _map => mapControl;
     private readonly BindingSource _bindingSource = new();
-    private ToolStrip? _commands;
     private Func<PhotoItem, bool> _activeFilter = _ => true;
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
@@ -34,13 +33,10 @@ public partial class Form1 : Form
         _geocoding = new GeocodingService(_settings);
         _sessionController = new SessionController(_session, _history);
         InitializeComponent();
-        dgv.AutoGenerateColumns = true;
         _bindingSource.DataSource = _files;
         dgv.DataSource = _bindingSource;
-        ConfigureGrid();
         bChange.Text = "STAGE";
-        CreateCommands();
-        splitContainer1.Panel2.Controls.Add(_map);
+        WireCommands();
         _map.BringToFront();
         _map.LocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
         Shown += async (_, _) =>
@@ -174,28 +170,28 @@ public partial class Form1 : Form
         return base.ProcessCmdKey(ref message, keyData);
     }
 
-    private void CreateCommands()
+    private ToolStripItem Command(string name) =>
+        commands.Items[name] ?? throw new InvalidOperationException($"Designer command {name} not found.");
+
+    private void WireCommands()
     {
-        var commands = _commands = new ToolStrip { Dock = DockStyle.Top };
-        commands.Items.Add("Apply", null, async (_, _) => await ApplyPendingChangesAsync(_session.Media));
-        commands.Items.Add("Undo", null, (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); });
-        commands.Items.Add("Redo", null, (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); });
-        commands.Items.Add("Reset selected", null, (_, _) => ResetPatches(SelectedItems));
-        commands.Items.Add("Reset all", null, (_, _) => ResetPatches(_session.Media));
-        commands.Items.Add("-1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(-1)));
-        commands.Items.Add("+1 hour", null, (_, _) => ShiftSelected(TimeSpan.FromHours(1)));
-        commands.Items.Add("-1 minute", null, (_, _) => ShiftSelected(TimeSpan.FromMinutes(-1)));
-        commands.Items.Add("+1 minute", null, (_, _) => ShiftSelected(TimeSpan.FromMinutes(1)));
-        commands.Items.Add("Remove GPS", null, (_, _) => RemoveGpsSelected());
-        commands.Items.Add("Set GPS", null, (_, _) => StageGpsFromFields());
-        commands.Items.Add("Map", null, (_, _) => ToggleMap());
-        commands.Items.Add("All", null, (_, _) => ApplyFilter(_ => true));
-        commands.Items.Add("Modified", null, (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges));
-        commands.Items.Add("No GPS", null, (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue));
-        commands.Items.Add("Errors", null, (_, _) => ApplyFilter(item => item.Error is not null));
-        commands.Items.Add("Restore backup", null, async (_, _) => await RestoreSelectedAsync());
-        Controls.Add(commands);
-        commands.BringToFront();
+        Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        Command("undoCommand").Click += (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); };
+        Command("redoCommand").Click += (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); };
+        Command("resetSelectedCommand").Click += (_, _) => ResetPatches(SelectedItems);
+        Command("resetAllCommand").Click += (_, _) => ResetPatches(_session.Media);
+        Command("minusHourCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromHours(-1));
+        Command("plusHourCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromHours(1));
+        Command("minusMinuteCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromMinutes(-1));
+        Command("plusMinuteCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromMinutes(1));
+        Command("removeGpsCommand").Click += (_, _) => RemoveGpsSelected();
+        Command("setGpsCommand").Click += (_, _) => StageGpsFromFields();
+        Command("mapCommand").Click += (_, _) => ToggleMap();
+        Command("allFilterCommand").Click += (_, _) => ApplyFilter(_ => true);
+        Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges);
+        Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
+        Command("errorsFilterCommand").Click += (_, _) => ApplyFilter(item => item.Error is not null);
+        Command("restoreBackupCommand").Click += async (_, _) => await RestoreSelectedAsync();
     }
 
     private void ApplyFilter(Func<PhotoItem, bool> predicate)
@@ -265,15 +261,6 @@ public partial class Form1 : Form
         finally { SetBusy(false); }
     }
 
-    private void ConfigureGrid()
-    {
-        dgv.AutoGenerateColumns = false;
-        dgv.MultiSelect = true;
-        dgv.Columns.Clear();
-        foreach (var name in new[] { "FileName", "Date", "Latitude", "Longitude", "City", "Country", "Status" })
-            dgv.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = name, Name = name, HeaderText = name });
-    }
-
     private void ResetPatches(IEnumerable<PhotoItem> items)
     {
         var list = items.ToList();
@@ -312,7 +299,7 @@ public partial class Form1 : Form
     private void SetBusy(bool busy)
     {
         main.Enabled = !busy;
-        if (_commands is not null) _commands.Enabled = !busy;
+        commands.Enabled = !busy;
         if (busy) pgb.Value = 0;
     }
 
