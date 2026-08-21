@@ -3,6 +3,7 @@ using ExifTweaker.Models;
 
 namespace ExifTweaker.Services;
 
+public sealed record MetadataApplyPreview(int FileCount, int DateChanges, int LocationChanges, int OffsetChanges);
 public sealed record MetadataApplyFileResult(string FilePath, bool Succeeded, string? Error);
 public sealed record MetadataApplyResult(IReadOnlyList<MetadataApplyFileResult> Files)
 {
@@ -36,6 +37,20 @@ public sealed class MetadataService
             progress?.Report(files.Count == 0 ? 100 : (int)(100d * (index + 1) / files.Count));
         }
         return items;
+    }
+
+    public MetadataApplyPreview Preview(IEnumerable<PhotoItem> items)
+    {
+        var changed = items.Where(item => item.PendingChanges.HasChanges).ToList();
+        return new MetadataApplyPreview(changed.Count, changed.Count(item => item.PendingChanges.HasDateChange), changed.Count(item => item.PendingChanges.HasLocationChange), changed.Count(item => item.PendingChanges.HasOffsetChange));
+    }
+
+    public async Task RestoreBackupAsync(PhotoItem item, CancellationToken ct = default)
+    {
+        await _exifTool.RestoreBackupAsync(item, ct);
+        var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, ct);
+        if (!readBack.TryGetValue(item.FilePath, out var restored)) throw new InvalidOperationException("ExifTool did not return metadata after restore.");
+        item.Original = restored; item.PendingChanges.Clear(); item.Error = null; item.NotifyChanged();
     }
 
     public async Task<MetadataApplyResult> ApplyPendingChangesAsync(IEnumerable<PhotoItem> items, IProgress<int>? progress = null, CancellationToken ct = default)

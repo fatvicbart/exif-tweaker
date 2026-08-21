@@ -9,6 +9,7 @@ namespace ExifTweaker;
 public partial class Form1 : Form
 {
     private readonly ImportSession _session = new();
+    private readonly EditHistory _history = new();
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
@@ -26,6 +27,8 @@ public partial class Form1 : Form
         InitializeComponent();
         dgv.AutoGenerateColumns = true;
         dgv.DataSource = new BindingSource { DataSource = _files };
+        ConfigureGrid();
+        bChange.Text = "STAGE";
         _session.PropertyChanged += (_, _) => UpdateSessionCaption();
         UpdateSessionCaption();
     }
@@ -42,6 +45,7 @@ public partial class Form1 : Form
             return;
         }
 
+        _history.Capture(selected);
         foreach (var photo in selected)
         {
             photo.PendingChanges.CaptureDate = dateTimePicker1.Value;
@@ -54,7 +58,7 @@ public partial class Form1 : Form
             }
             photo.NotifyChanged();
         }
-        await ApplyPendingChangesAsync(selected);
+        _session.NotifyChanged();
     }
 
     private async void button2_Click(object sender, EventArgs e)
@@ -104,6 +108,10 @@ public partial class Form1 : Form
 
     private async Task ApplyPendingChangesAsync(IReadOnlyList<PhotoItem> photos)
     {
+        var preview = _metadata.Preview(photos);
+        if (preview.FileCount == 0) return;
+        var message = string.Format("Apply metadata changes to {0} file(s)?\nDates: {1} | Locations: {2} | Offsets: {3}", preview.FileCount, preview.DateChanges, preview.LocationChanges, preview.OffsetChanges);
+        if (MessageBox.Show(message, "Confirm Apply", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
         try
         {
             SetBusy(true);
@@ -166,6 +174,23 @@ public partial class Form1 : Form
     {
         if (keyData == Keys.Escape && _operationCts is { IsCancellationRequested: false }) { _operationCts.Cancel(); return true; }
         return base.ProcessCmdKey(ref message, keyData);
+    }
+
+    private void ConfigureGrid()
+    {
+        dgv.AutoGenerateColumns = false;
+        dgv.MultiSelect = true;
+        dgv.Columns.Clear();
+        foreach (var name in new[] { "FileName", "Date", "Latitude", "Longitude", "City", "Country", "Status" })
+            dgv.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = name, Name = name, HeaderText = name });
+    }
+
+    private void ResetPatches(IEnumerable<PhotoItem> items)
+    {
+        var list = items.ToList();
+        _history.Capture(list);
+        foreach (var item in list) { item.PendingChanges.Clear(); item.NotifyChanged(); }
+        _session.NotifyChanged();
     }
 
     private void UpdateSessionCaption()

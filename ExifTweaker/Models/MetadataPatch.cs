@@ -16,6 +16,18 @@ public sealed class MetadataPatch
     public bool HasChanges => HasDateChange || HasOffsetChange ||
                               (Latitude.HasValue && Longitude.HasValue) || RemoveLocation;
 
+    public MetadataPatch Clone() => new()
+    {
+        CaptureDate = CaptureDate, DateShift = DateShift, OffsetTimeOriginal = OffsetTimeOriginal,
+        RemoveOffsetTimeOriginal = RemoveOffsetTimeOriginal, Latitude = Latitude, Longitude = Longitude, RemoveLocation = RemoveLocation
+    };
+
+    public void CopyFrom(MetadataPatch source)
+    {
+        CaptureDate = source.CaptureDate; DateShift = source.DateShift; OffsetTimeOriginal = source.OffsetTimeOriginal;
+        RemoveOffsetTimeOriginal = source.RemoveOffsetTimeOriginal; Latitude = source.Latitude; Longitude = source.Longitude; RemoveLocation = source.RemoveLocation;
+    }
+
     public void Clear()
     {
         CaptureDate = null;

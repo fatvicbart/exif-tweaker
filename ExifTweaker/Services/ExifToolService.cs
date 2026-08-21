@@ -70,6 +70,14 @@ public sealed class ExifToolService
         await RunAsync(args, ct);
     }
 
+    public Task RestoreBackupAsync(PhotoItem item, CancellationToken ct = default) => Task.Run(() =>
+    {
+        var backup = item.FilePath + "_original";
+        if (!File.Exists(backup)) throw new FileNotFoundException("ExifTool backup was not found.", backup);
+        ct.ThrowIfCancellationRequested();
+        File.Copy(backup, item.FilePath, overwrite: true);
+    }, ct);
+
     private async Task<IReadOnlyDictionary<string, PhotoMetadata>> ReadBatchAsync(IEnumerable<string> files, CancellationToken ct)
     {
         var args = new List<string>
