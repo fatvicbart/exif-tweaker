@@ -11,6 +11,7 @@ public partial class Form1 : Form
 {
     private readonly ImportSession _session = new();
     private readonly EditHistory _history = new();
+    private readonly SessionController _sessionController;
     private readonly ThumbnailService _thumbnails = new();
     private readonly LocationEditorService _locations = new();
     private readonly MapControl _map = new() { Visible = false };
@@ -31,6 +32,7 @@ public partial class Form1 : Form
     {
         _metadata = new MetadataService(new ExifToolService(_settings.ExifToolPath), _settings);
         _geocoding = new GeocodingService(_settings);
+        _sessionController = new SessionController(_session, _history);
         InitializeComponent();
         dgv.AutoGenerateColumns = true;
         _bindingSource.DataSource = _files;
@@ -54,13 +56,7 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
-        _history.Capture(selected);
-        foreach (var photo in selected)
-        {
-            photo.PendingChanges.CaptureDate = dateTimePicker1.Value;
-            photo.NotifyChanged();
-        }
-        _session.NotifyChanged();
+        _sessionController.StageDate(selected, dateTimePicker1.Value);
     }
 
     private async void button2_Click(object sender, EventArgs e)
@@ -221,9 +217,7 @@ public partial class Form1 : Form
             return;
         }
         var selected = SelectedItems;
-        _history.Capture(selected);
-        _locations.SetLocation(selected, latitude, longitude);
-        _session.NotifyChanged();
+        _sessionController.SetLocation(selected, latitude, longitude, _locations);
     }
 
     private void ToggleMap()
@@ -238,27 +232,21 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
-        _history.Capture(selected);
-        _locations.SetLocation(selected, latitude, longitude);
+        _sessionController.SetLocation(selected, latitude, longitude, _locations);
         tLat.Text = latitude.ToString(CultureInfo.InvariantCulture);
         tLon.Text = longitude.ToString(CultureInfo.InvariantCulture);
-        _session.NotifyChanged();
     }
 
     private void RemoveGpsSelected()
     {
         var selected = SelectedItems;
-        _history.Capture(selected);
-        _locations.RemoveLocation(selected);
-        _session.NotifyChanged();
+        _sessionController.RemoveLocation(selected, _locations);
     }
 
     private void ShiftSelected(TimeSpan shift)
     {
         var selected = SelectedItems;
-        _history.Capture(selected);
-        foreach (var item in selected) { item.PendingChanges.CaptureDate = null; item.PendingChanges.DateShift = (item.PendingChanges.DateShift ?? TimeSpan.Zero) + shift; item.NotifyChanged(); }
-        _session.NotifyChanged();
+        _sessionController.ShiftDate(selected, shift);
     }
 
     private async Task RestoreSelectedAsync()
@@ -289,9 +277,7 @@ public partial class Form1 : Form
     private void ResetPatches(IEnumerable<PhotoItem> items)
     {
         var list = items.ToList();
-        _history.Capture(list);
-        foreach (var item in list) { item.PendingChanges.Clear(); item.NotifyChanged(); }
-        _session.NotifyChanged();
+        _sessionController.Reset(list);
     }
 
     private void UpdateSessionCaption()
