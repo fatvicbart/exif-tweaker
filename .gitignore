@@ -51,6 +51,12 @@ CodeCoverage/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# ExifTool bundles Win32 runtime modules whose names match generic build exclusions.
+!ExifTweaker/Infrastructure/exiftool/exiftool_files/lib/Win32/
+!ExifTweaker/Infrastructure/exiftool/exiftool_files/lib/Win32/**
+!ExifTweaker/Infrastructure/exiftool/exiftool_files/lib/auto/Win32/
+!ExifTweaker/Infrastructure/exiftool/exiftool_files/lib/auto/Win32/**
+
 # NUnit
 *.VisualState.xml
 TestResult.xml
