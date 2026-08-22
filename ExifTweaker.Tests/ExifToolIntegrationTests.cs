@@ -36,6 +36,8 @@ public sealed class ExifToolIntegrationTests
         {
             var mediaPath = Path.Combine(directory, "média test.tif");
             CreateMinimalTiff(mediaPath);
+            var originalCaptureDate = new DateTime(2019, 6, 15, 10, 20, 30);
+            await SeedCameraMetadataAsync(mediaPath, originalCaptureDate);
             var originalHash = SHA256.HashData(await File.ReadAllBytesAsync(mediaPath));
             var service = new ExifToolService(BundledExecutable);
             var metadata = new MetadataService(service, new AppSettings
@@ -47,7 +49,10 @@ public sealed class ExifToolIntegrationTests
             var item = (await metadata.LoadAsync(new[] { mediaPath })).Single();
             Assert.IsNull(item.Error, item.Details);
             Assert.IsNull(item.ImportNotice, item.Details);
-            Assert.AreEqual("Metadata issue", item.Status, "A valid image without EXIF must not be classified as an error.");
+            Assert.AreEqual(originalCaptureDate, item.Original.CaptureDate);
+            Assert.AreEqual("ExifTweaker Test Camera", item.Original.CameraMake);
+            Assert.AreEqual("Digital Camera 1000", item.Original.CameraModel);
+            Assert.AreEqual("Unchanged", item.Status);
             var expectedDate = new DateTime(2026, 8, 22, 14, 35, 47);
             item.PendingChanges.CaptureDate = expectedDate;
             item.PendingChanges.OffsetTimeOriginal = TimeSpan.FromHours(2);
@@ -73,7 +78,7 @@ public sealed class ExifToolIntegrationTests
 
             var restoredHash = SHA256.HashData(await File.ReadAllBytesAsync(mediaPath));
             CollectionAssert.AreEqual(originalHash, restoredHash, "The restored media differs from the original bytes.");
-            Assert.IsNull(item.Original.CaptureDate, "Restored metadata was not reloaded from the original.");
+            Assert.AreEqual(originalCaptureDate, item.Original.CaptureDate, "Restored camera metadata was not reloaded from the original.");
         }
         finally
         {
@@ -86,6 +91,50 @@ public sealed class ExifToolIntegrationTests
     {
         if (!OperatingSystem.IsWindows())
             Assert.Inconclusive("The bundled exiftool.exe integration test requires Windows.");
+    }
+
+    private static async Task SeedCameraMetadataAsync(string path, DateTime captureDate)
+    {
+        var argumentPath = Path.Combine(Path.GetTempPath(), $"exiftweaker-seed-{Guid.NewGuid():N}.args");
+        try
+        {
+            var value = captureDate.ToString("yyyy:MM:dd HH:mm:ss", System.Globalization.CultureInfo.InvariantCulture);
+            var arguments = new[]
+            {
+                "-overwrite_original",
+                $"-DateTimeOriginal={value}",
+                $"-CreateDate={value}",
+                "-Make=ExifTweaker Test Camera",
+                "-Model=Digital Camera 1000",
+                path
+            };
+            await File.WriteAllBytesAsync(argumentPath, ExifToolService.EncodeArgumentFile(arguments));
+
+            var startInfo = new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = BundledExecutable,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = System.Text.Encoding.UTF8,
+                StandardErrorEncoding = System.Text.Encoding.UTF8,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("-charset");
+            startInfo.ArgumentList.Add("filename=UTF8");
+            startInfo.ArgumentList.Add("-@");
+            startInfo.ArgumentList.Add(argumentPath);
+
+            using var process = System.Diagnostics.Process.Start(startInfo) ?? throw new InvalidOperationException("ExifTool seed process did not start.");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync();
+            Assert.AreEqual(0, process.ExitCode, $"ExifTool seed failed: {await stderr} {await stdout}");
+        }
+        finally
+        {
+            if (File.Exists(argumentPath)) File.Delete(argumentPath);
+        }
     }
 
     private static void CreateMinimalTiff(string path)

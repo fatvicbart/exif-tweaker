@@ -147,34 +147,74 @@ public sealed class ExifToolService
 
     private async Task<IReadOnlyDictionary<string, PhotoMetadata>> ReadBatchAsync(IEnumerable<string> files, CancellationToken ct)
     {
+        var requestedFiles = files.Select(Path.GetFullPath).ToList();
         var args = new List<string>
         {
-            "-json", "-n", "-api", "QuickTimeUTC=1",
-            "-DateTimeOriginal", "-CreateDate", "-MediaCreateDate", "-TrackCreateDate", "-OffsetTimeOriginal",
-            "-GPSLatitude", "-GPSLongitude", "-GPSAltitude", "-Make", "-Model", "-LensModel", "-Orientation",
+            "-json", "-n", "-api", "QuickTimeUTC=1", "-SourceFile",
+            "-DateTimeOriginal", "-SubSecDateTimeOriginal", "-CreateDate", "-ModifyDate",
+            "-MediaCreateDate", "-TrackCreateDate", "-ContentCreateDate", "-OffsetTimeOriginal",
+            "-GPSLatitude", "-GPSLongitude", "-GPSAltitude", "-Make", "-Model", "-CameraModelName", "-LensModel", "-Orientation",
             "-ImageWidth", "-ImageHeight", "-FileType", "-MIMEType", "-FileCreateDate", "-FileModifyDate", "-City", "-Country"
         };
-        args.AddRange(files);
+        args.AddRange(requestedFiles);
         var output = await RunAsync(args, ct);
+        return ParseMetadataJson(output, requestedFiles);
+    }
+
+    internal static IReadOnlyDictionary<string, PhotoMetadata> ParseMetadataJson(string output, IReadOnlyList<string> requestedFiles)
+    {
         using var document = JsonDocument.Parse(output);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("ExifTool JSON output is not an array.");
+
+        var normalizedRequests = requestedFiles.Select(Path.GetFullPath).ToList();
         var result = new Dictionary<string, PhotoMetadata>(StringComparer.OrdinalIgnoreCase);
+        var index = 0;
         foreach (var item in document.RootElement.EnumerateArray())
         {
-            var source = GetString(item, "SourceFile");
-            if (string.IsNullOrWhiteSpace(source)) continue;
-            result[Path.GetFullPath(source)] = new PhotoMetadata
+            var filePath = ResolveRequestedPath(GetString(item, "SourceFile"), normalizedRequests, index);
+            index++;
+            if (filePath is null) continue;
+
+            result[filePath] = new PhotoMetadata
             {
-                CaptureDate = ParseExifDate(GetString(item, "DateTimeOriginal") ?? GetString(item, "CreateDate") ?? GetString(item, "MediaCreateDate") ?? GetString(item, "TrackCreateDate")),
+                CaptureDate = ParseExifDate(
+                    GetString(item, "DateTimeOriginal", "SubSecDateTimeOriginal", "CreateDate", "ModifyDate",
+                        "MediaCreateDate", "TrackCreateDate", "ContentCreateDate")),
                 Offset = ParseOffset(GetString(item, "OffsetTimeOriginal")),
-                Latitude = GetDouble(item, "GPSLatitude"), Longitude = GetDouble(item, "GPSLongitude"), Altitude = GetDouble(item, "GPSAltitude"),
-                CameraMake = GetString(item, "Make"), CameraModel = GetString(item, "Model"), Lens = GetString(item, "LensModel"),
+                Latitude = GetDouble(item, "GPSLatitude"),
+                Longitude = GetDouble(item, "GPSLongitude"),
+                Altitude = GetDouble(item, "GPSAltitude"),
+                CameraMake = GetString(item, "Make"),
+                CameraModel = GetString(item, "Model", "CameraModelName"),
+                Lens = GetString(item, "LensModel"),
                 Orientation = GetInt(item, "Orientation"),
-                Width = GetInt(item, "ImageWidth"), Height = GetInt(item, "ImageHeight"), FileType = GetString(item, "FileType"), MimeType = GetString(item, "MIMEType"),
-                FileCreateDate = ParseExifDate(GetString(item, "FileCreateDate")), FileModifyDate = ParseExifDate(GetString(item, "FileModifyDate")),
-                City = GetString(item, "City"), Country = GetString(item, "Country")
+                Width = GetInt(item, "ImageWidth"),
+                Height = GetInt(item, "ImageHeight"),
+                FileType = GetString(item, "FileType"),
+                MimeType = GetString(item, "MIMEType"),
+                FileCreateDate = ParseExifDate(GetString(item, "FileCreateDate")),
+                FileModifyDate = ParseExifDate(GetString(item, "FileModifyDate")),
+                City = GetString(item, "City"),
+                Country = GetString(item, "Country")
             };
         }
+
+        AppLogger.Info($"ExifTool metadata read: requested {normalizedRequests.Count}, returned {index}, associated {result.Count}.");
         return result;
+    }
+
+    private static string? ResolveRequestedPath(string? source, IReadOnlyList<string> requestedFiles, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(source))
+        {
+            var sourcePath = Path.GetFullPath(source);
+            var matched = requestedFiles.FirstOrDefault(path =>
+                path.Equals(sourcePath, StringComparison.OrdinalIgnoreCase));
+            if (matched is not null) return matched;
+        }
+
+        return index < requestedFiles.Count ? requestedFiles[index] : null;
     }
 
     private async Task<byte[]> RunBinaryAsync(IEnumerable<string> arguments, CancellationToken ct)
@@ -250,6 +290,8 @@ public sealed class ExifToolService
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             CreateNoWindow = true
         };
         startInfo.ArgumentList.Add("-charset");
@@ -350,9 +392,44 @@ public sealed class ExifToolService
 
     private static bool IsVideo(string path) => Path.GetExtension(path) is var extension && (extension.Equals(".mov", StringComparison.OrdinalIgnoreCase) || extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase));
     private static string FormatExifOffset(TimeSpan offset) => $"{(offset < TimeSpan.Zero ? "-" : "+")}{Math.Abs((int)offset.TotalHours):00}:{Math.Abs(offset.Minutes):00}";
-    private static string? GetString(JsonElement element, string name) => element.TryGetProperty(name, out var property) ? property.ToString() : null;
-    private static double? GetDouble(JsonElement element, string name) => element.TryGetProperty(name, out var property) && property.TryGetDouble(out var value) ? value : null;
-    private static int? GetInt(JsonElement element, string name) => element.TryGetProperty(name, out var property) && property.TryGetInt32(out var value) ? value : null;
+    private static string? GetString(JsonElement element, params string[] names)
+    {
+        foreach (var name in names)
+            if (TryGetProperty(element, name, out var property) && property.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined)
+                return property.ToString();
+        return null;
+    }
+
+    private static double? GetDouble(JsonElement element, string name)
+    {
+        if (!TryGetProperty(element, name, out var property)) return null;
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetDouble(out var numeric)) return numeric;
+        return double.TryParse(property.ToString(), NumberStyles.Float, CultureInfo.InvariantCulture, out numeric) ? numeric : null;
+    }
+
+    private static int? GetInt(JsonElement element, string name)
+    {
+        if (!TryGetProperty(element, name, out var property)) return null;
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out var numeric)) return numeric;
+        return int.TryParse(property.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out numeric) ? numeric : null;
+    }
+
+    private static bool TryGetProperty(JsonElement element, string name, out JsonElement value)
+    {
+        if (element.TryGetProperty(name, out value)) return true;
+        foreach (var property in element.EnumerateObject())
+        {
+            if (property.Name.Equals(name, StringComparison.OrdinalIgnoreCase) ||
+                property.Name.EndsWith($":{name}", StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
+    }
     private static DateTime? ParseExifDate(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return null;

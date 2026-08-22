@@ -96,4 +96,64 @@ public sealed class ExifToolResolutionTests
 
         Assert.AreEqual(TimeSpan.FromHours(-5.5), offset);
     }
+
+    [TestMethod]
+    public void CameraMetadataJsonIsFullyParsed()
+    {
+        var filePath = Path.GetFullPath("camera-photo.jpg");
+        var json = System.Text.Json.JsonSerializer.Serialize(new[]
+        {
+            new Dictionary<string, object>
+            {
+                ["SourceFile"] = filePath,
+                ["DateTimeOriginal"] = "2024:07:18 14:35:42",
+                ["Make"] = "Canon",
+                ["Model"] = "EOS R6",
+                ["LensModel"] = "RF24-105mm F4 L IS USM",
+                ["ImageWidth"] = 6000,
+                ["ImageHeight"] = 4000,
+                ["FileType"] = "JPEG",
+                ["MIMEType"] = "image/jpeg",
+                ["GPSLatitude"] = 48.8566,
+                ["GPSLongitude"] = 2.3522
+            }
+        });
+
+        var parsed = ExifToolService.ParseMetadataJson(json, new[] { filePath });
+        var metadata = parsed[filePath];
+
+        Assert.AreEqual(new DateTime(2024, 7, 18, 14, 35, 42), metadata.CaptureDate);
+        Assert.AreEqual("Canon", metadata.CameraMake);
+        Assert.AreEqual("EOS R6", metadata.CameraModel);
+        Assert.AreEqual("RF24-105mm F4 L IS USM", metadata.Lens);
+        Assert.AreEqual(6000, metadata.Width);
+        Assert.AreEqual(4000, metadata.Height);
+        Assert.AreEqual(48.8566, metadata.Latitude!.Value, 0.00001);
+        Assert.AreEqual(2.3522, metadata.Longitude!.Value, 0.00001);
+    }
+
+    [TestMethod]
+    public void GroupedJsonWithoutSourceFileUsesRequestedFilePosition()
+    {
+        var filePath = Path.GetFullPath("grouped-camera-photo.jpg");
+        const string json = """
+            [{
+              "EXIF:SubSecDateTimeOriginal": "2023:11:05 09:08:07.42",
+              "EXIF:Make": "NIKON CORPORATION",
+              "EXIF:CameraModelName": "NIKON Z 6",
+              "File:ImageWidth": "6048",
+              "File:ImageHeight": "4024"
+            }]
+            """;
+
+        var parsed = ExifToolService.ParseMetadataJson(json, new[] { filePath });
+        var metadata = parsed[filePath];
+
+        Assert.AreEqual(new DateTime(2023, 11, 5, 9, 8, 7), metadata.CaptureDate);
+        Assert.AreEqual("NIKON CORPORATION", metadata.CameraMake);
+        Assert.AreEqual("NIKON Z 6", metadata.CameraModel);
+        Assert.AreEqual(6048, metadata.Width);
+        Assert.AreEqual(4024, metadata.Height);
+    }
+
 }
