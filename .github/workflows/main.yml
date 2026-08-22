@@ -28,5 +28,23 @@ jobs:
       - name: Build solution
         run: dotnet build ExifTweaker.sln --configuration Release --no-restore
 
+      - name: Validate bundled ExifTool
+        shell: pwsh
+        run: |
+          $paths = @(
+            "ExifTweaker/bin/Release/net10.0-windows/exiftool/exiftool.exe",
+            "ExifTweaker.Tests/bin/Release/net10.0/exiftool/exiftool.exe"
+          )
+          foreach ($path in $paths) {
+            if (-not (Test-Path $path)) {
+              throw "Bundled ExifTool is missing: $path"
+            }
+            $version = & $path -ver
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($version)) {
+              throw "Bundled ExifTool could not be executed: $path"
+            }
+            Write-Host "ExifTool $version validated at $path"
+          }
+
       - name: Run tests
         run: dotnet test ExifTweaker.sln --configuration Release --no-build --no-restore
