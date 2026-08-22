@@ -361,5 +361,11 @@ public sealed class ExifToolService
             ? parsed
             : DateTime.TryParse(value, out parsed) ? parsed : null;
     }
-    private static TimeSpan? ParseOffset(string? value) => TimeSpan.TryParse(value, CultureInfo.InvariantCulture, out var offset) ? offset : null;
+    internal static TimeSpan? ParseOffset(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Trim();
+        if (normalized.StartsWith('+')) normalized = normalized[1..];
+        return TimeSpan.TryParse(normalized, CultureInfo.InvariantCulture, out var offset) ? offset : null;
+    }
 }

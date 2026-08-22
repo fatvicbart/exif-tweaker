@@ -80,4 +80,20 @@ public sealed class ExifToolResolutionTests
         Assert.ThrowsExactly<ArgumentException>(() =>
             ExifToolService.EncodeArgumentFile(new[] { "-json", "invalid\nargument" }));
     }
+
+    [TestMethod]
+    public void PositiveExifOffsetIsParsed()
+    {
+        var offset = ExifToolService.ParseOffset("+02:00");
+
+        Assert.AreEqual(TimeSpan.FromHours(2), offset);
+    }
+
+    [TestMethod]
+    public void NegativeExifOffsetIsParsed()
+    {
+        var offset = ExifToolService.ParseOffset("-05:30");
+
+        Assert.AreEqual(TimeSpan.FromHours(-5.5), offset);
+    }
 }
