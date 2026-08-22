@@ -11,8 +11,19 @@ public sealed class ExifToolService
     private const int ReadBatchSize = 100;
     private readonly string _executable;
 
-    public ExifToolService(string? executable = null) => _executable = executable ?? ResolveExecutable();
+    public ExifToolService(string? executable = null, string? applicationBaseDirectory = null) =>
+        _executable = ResolveExecutable(executable ?? AppSettings.Load().ExifToolPath, applicationBaseDirectory);
+
+    public string ExecutablePath => _executable;
     public bool IsAvailable => ResolveAvailable(_executable);
+
+    public async Task<string> GetVersionAsync(CancellationToken ct = default)
+    {
+        var version = (await RunAsync(new[] { "-ver" }, ct)).Trim();
+        if (string.IsNullOrWhiteSpace(version))
+            throw new InvalidOperationException("ExifTool returned an empty version.");
+        return version;
+    }
 
     public async Task<IReadOnlyDictionary<string, PhotoMetadata>> ReadAsync(IEnumerable<string> files, CancellationToken ct = default)
     {
@@ -247,35 +258,49 @@ public sealed class ExifToolService
     private void EnsureAvailable()
     {
         if (!IsAvailable)
-            throw new FileNotFoundException("ExifTool was not found. Configure its path in settings, put exiftool.exe in an exiftool folder next to ExifTweaker.exe, or add it to PATH.", _executable);
+            throw new FileNotFoundException($"ExifTool could not be executed from '{_executable}'. Configure its path in settings, use the bundled distribution, or add it to PATH.", _executable);
     }
 
-    private static string ResolveExecutable()
+    internal static string ResolveExecutable(string? configuredPath = null, string? applicationBaseDirectory = null)
     {
-        var configured = AppSettings.Load().ExifToolPath;
-        if (!string.IsNullOrWhiteSpace(configured)) return configured;
-        var local = Path.Combine(AppContext.BaseDirectory, "exiftool", "exiftool.exe");
-        return File.Exists(local) ? local : "exiftool";
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            var configured = Environment.ExpandEnvironmentVariables(configuredPath.Trim());
+            if (Directory.Exists(configured))
+                return Path.Combine(configured, "exiftool.exe");
+            return configured;
+        }
+
+        var baseDirectory = applicationBaseDirectory ?? AppContext.BaseDirectory;
+        var bundled = Path.Combine(baseDirectory, "exiftool", "exiftool.exe");
+        return File.Exists(bundled)
+            ? bundled
+            : OperatingSystem.IsWindows() ? "exiftool.exe" : "exiftool";
     }
 
-    private static bool ResolveAvailable(string executable)
+    internal static bool ResolveAvailable(string executable)
     {
-        if (Path.IsPathRooted(executable)) return File.Exists(executable);
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(executable, "-ver")
+            var startInfo = new ProcessStartInfo
             {
+                FileName = executable,
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
+                RedirectStandardError = true,
                 CreateNoWindow = true
-            });
+            };
+            startInfo.ArgumentList.Add("-ver");
+            using var process = Process.Start(startInfo);
             if (process is null) return false;
-            if (!process.WaitForExit(1500))
+            if (!process.WaitForExit(5000))
             {
                 try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
                 return false;
             }
-            return process.ExitCode == 0;
+            var version = process.StandardOutput.ReadToEnd().Trim();
+            _ = process.StandardError.ReadToEnd();
+            return process.ExitCode == 0 && !string.IsNullOrWhiteSpace(version);
         }
         catch { return false; }
     }

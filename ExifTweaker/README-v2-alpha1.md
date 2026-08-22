@@ -23,10 +23,22 @@ This source tree contains the v2 foundations, batch workflow and geolocation wor
 - ExifTool original-file backups and restore workflow.
 - Undo/redo/reset before Apply.
 
-## ExifTool installation
+## ExifTool integration
 
-Place ExifTool at `exiftool\\exiftool.exe` beside the application output, or make `exiftool` available in PATH.
-The binary is intentionally not bundled in this source archive.
+The complete Windows ExifTool distribution is stored in
+`Infrastructure/exiftool`. MSBuild copies it to `exiftool/` beside the
+application during build and publish; the `exiftool_files` sidecar
+directory must remain next to `exiftool.exe`.
+
+Resolution order:
+
+1. path configured in Settings or `EXIFTWEAKER_EXIFTOOL_PATH`;
+2. bundled `exiftool/exiftool.exe` beside the application;
+3. `exiftool.exe` available in `PATH`.
+
+A configured path may point either to `exiftool.exe` or to its
+containing directory. Availability is validated by executing
+`exiftool -ver`, not only by checking that the file exists.
 
 ## Geocoding
 
@@ -42,4 +54,11 @@ The map requires NuGet restore for `Microsoft.Web.WebView2` and the Microsoft Ed
 
 ## Validation before use
 
-Run `dotnet restore` then `dotnet build` on Windows with .NET 10. Test on copies of JPEG, HEIC, RAW, MOV and MP4 files until ExifTool read/write, backup and restoration have been verified with your real media set.
+Run `dotnet restore`, `dotnet build --configuration Release` and
+`dotnet test --configuration Release` on Windows with .NET 10. The
+Windows integration suite executes the bundled ExifTool on a temporary
+Unicode TIFF and validates version detection, Apply, read-back, original
+backup and byte-identical restoration.
+
+Keep testing on copies of JPEG, HEIC, RAW, MOV and MP4 files until these
+operations have also been verified with your real media set.
