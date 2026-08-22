@@ -39,6 +39,79 @@ Carte SD / Téléphone / Dossier Windows
 -   Traitements asynchrones et annulables.
 -   Suggestions automatiques jamais appliquées sans validation.
 
+## État d'avancement au 22 août 2026
+
+Ce tableau est l'état de référence du dépôt actuel. Il remplace les
+anciennes mentions d'avancement ponctuelles présentes plus bas dans le
+document.
+
+Méthode d'estimation : le pourcentage mesure à la fois l'implémentation,
+les tests automatisés et la qualification fonctionnelle. Les 26 phases
+ont le même poids dans le calcul global. `Terminé` signifie que le code
+prévu est présent ; une validation externe résiduelle peut encore être
+indiquée. `Partiel` signifie qu'un workflow utilisable existe mais que
+des critères importants manquent. `Embryonnaire` désigne uniquement des
+briques réutilisables, sans workflow complet.
+
+| Phase | Sujet | État | Avancement | Ce qui manque pour terminer |
+|---:|---|---|---:|---|
+| 0 | Sécurisation et nettoyage | Terminé | 95 % | Confirmer hors dépôt la révocation de toute ancienne clé publiée et effectuer une dernière revue sécurité avant diffusion. |
+| 1 | Nouveau modèle métier | Terminé | 100 % | Rien pour le périmètre défini. |
+| 2 | ExifTool comme moteur unique | Terminé | 90 % | Qualifier lecture/écriture sur un corpus Unicode et multi-format réel ; évaluer `-stay_open` si les mesures montrent un besoin. |
+| 3 | Moteur asynchrone | Terminé | 90 % | Tester systématiquement annulation et progression sur les gros traitements et mesurer l'absence de blocage UI. |
+| 4 | Import et découverte | Terminé | 90 % | Tester de très gros dossiers, les arborescences partiellement inaccessibles et chaque format cible avec de vrais médias. |
+| 5 | Import Session | Terminé | 90 % | Conserver aussi les erreurs de découverte dans la session et compléter les tests de mise à jour dynamique. |
+| 6 | Nouvelle grille photo | Partiel | 85 % | Valider 1 000+ lignes, le scroll et toutes les combinaisons Ctrl/Shift ; envisager la virtualisation si les mesures l'exigent. |
+| 7 | Thumbnails et preview | Partiel | 85 % | Qualifier RAW/HEIC/vidéos réels, mesurer mémoire et fluidité, et vérifier l'invalidation du cache sur un corpus important. |
+| 8 | Éditeur de date complet | Terminé | 95 % | Ajouter des tests d'intégration ExifTool pour les offsets et les dates QuickTime. |
+| 9 | Pending Changes | Terminé | 90 % | Généraliser l'indication `<multiple values>` à tous les éditeurs et ajouter davantage de tests de Reset multi-sélection. |
+| 10 | Écriture ExifTool et backup | Partiel | 85 % | Tester Apply, erreurs partielles, read-back et restauration sur des copies de chaque format réel. |
+| 11 | Undo / Reset | Terminé | 90 % | Ajouter des tests d'intégration de restauration physique et de scénarios Apply partiellement réussi. |
+| 12 | Éditeur GPS | Terminé | 95 % | Qualifier l'écriture DMS/altitude par ExifTool sur plusieurs formats. |
+| 13 | Carte WebView2 | Partiel | 85 % | Tester le runtime WebView2 sous Windows, les erreurs de chargement réseau et le comportement sur de grandes sélections. |
+| 14 | Géocodage | Partiel | 85 % | Tester réellement Maps.co/Nominatim, gérer explicitement quotas/rate limiting et décider si le cache doit devenir persistant. |
+| 15 | Preview et rapport Apply | Terminé | 95 % | Valider l'ergonomie du rapport sur de gros batchs et des mélanges succès/warnings/erreurs/annulations. |
+| 16 | Import GPX | À faire | 0 % | Créer `GpxService`, parser les traces, gérer tolérance/timezone/interpolation, prévisualiser les correspondances et produire des patches. |
+| 17 | Correction d'horloge appareil | Embryonnaire | 10 % | Les primitives Shift/timezone existent ; il manque le modèle d'offset appareil, l'estimation via GPX, le recalcul et l'UI dédiée. |
+| 18 | Historique SQLite | Embryonnaire | 10 % | L'historique en mémoire existe ; il manque SQLite, les schémas, la persistance Apply, l'audit et la restauration depuis l'historique. |
+| 19 | Suggestions GPS sans GPX | À faire | 0 % | Implémenter provenance, analyse temporelle/spatiale, score de confiance, preview et validation manuelle. |
+| 20 | Timeline | À faire | 0 % | Créer le contrôle, le zoom, la sélection temporelle, les filtres et la synchronisation avec grille/carte. |
+| 21 | Carte globale de session | Embryonnaire | 30 % | La carte affiche déjà plusieurs points ; il manque clustering, provenance, filtres, sélection par cluster et synchronisation avec timeline. |
+| 22 | Détection d'anomalies | Embryonnaire | 10 % | Les statuts/filtres détectent quelques absences simples ; il manque le service de règles, sévérités, explications et suggestions. |
+| 23 | Vidéos QuickTime / MP4 | Partiel | 60 % | Import, dates et GPS QuickTime sont présents ; il manque durée, thumbnail vidéo fiable, corpus de tests et qualification UTC/local multi-appareils. |
+| 24 | Connecteur Immich | À faire | 0 % | Créer `ImmichService`, configuration/authentification, recherche d'assets, refresh metadata et ouverture/localisation. |
+| 25 | Intégration Immich-AI | À faire | 0 % | Définir le contrat, importer le contexte événementiel, calculer les suggestions et créer le workflow de validation. |
+
+### Synthèse
+
+| Périmètre | Avancement estimé | Lecture |
+|---|---:|---|
+| MVP, phases 0 à 15 | **90 %** | Fonctionnel dans le code ; qualification Windows, ExifTool et performance encore incomplète. |
+| Beta, phases 16 à 23 | **15 %** | Quelques fondations réutilisables, mais GPX, historique persistant et analyse de session restent à construire. |
+| Post-2.0, phases 24 à 25 | **0 %** | Aucun connecteur Immich ou Immich-AI présent. |
+| Plan complet, phases 0 à 25 | **60 %** | Moyenne arithmétique non pondérée des 26 phases. |
+
+### Validation actuellement acquise
+
+-   compilation Release .NET 10 confirmée avec 0 erreur ;
+-   8 tests automatisés réussis sur 8 en validation locale ;
+-   workflow GitHub Actions Windows réussi : restore et build Release
+    validés, 8 tests réussis sur 8, 0 échec et 0 test ignoré ;
+-   aucun secret en clair, `BackgroundWorker`, thread manuel ou
+    dépendance métier à ExifLibrary détecté.
+
+### Prochaine priorité recommandée
+
+1.  Conserver le run GitHub réussi comme validation reproductible
+    Windows de la compilation et des tests automatisés.
+2.  Qualifier les phases 0 à 15 sous Windows sur un corpus JPG, HEIC,
+    RAW, MOV et MP4 et avec au moins 1 000 médias.
+3.  Corriger les défauts révélés par cette qualification pour figer le
+    MVP.
+4.  Démarrer la phase 16 (`GpxService`) puis la phase 17, qui en dépend.
+5.  Implémenter ensuite l'historique SQLite de la phase 18 avant les
+    suggestions et outils d'analyse des phases 19 à 23.
+
 ## Architecture cible
 
 ``` text
@@ -804,27 +877,20 @@ Le MVP comprend :
 
 # Prochaine étape
 
-La base `v2-alpha1` couvre les phases **0 à 4**.
+Le dépôt couvre désormais le workflow MVP des phases **0 à 15**. Le
+prochain jalon n'est plus `v2-alpha2`, mais une passe de qualification
+complète du MVP sous Windows et sur médias réels.
 
-Le prochain chantier cohérent est **v2-alpha2 --- phases 5 à 11** :
+Une fois cette qualification stabilisée, le chantier fonctionnel
+suivant est **v2.0-beta1 --- phases 16 à 18** :
 
 ``` text
-ImportSession
+Import GPX
       ↓
-Nouvelle grille
+Correction d'horloge appareil
       ↓
-Thumbnails / preview
-      ↓
-Éditeur Date
-      ↓
-Pending Changes
-      ↓
-Preview
-      ↓
-Apply + backup
-      ↓
-Undo / Reset
+Historique SQLite
 ```
 
-Ce chantier transforme les nouvelles fondations en véritable workflow
-d'édition batch non destructif.
+Les phases 19 à 23 doivent rester postérieures à ces fondations, et les
+connecteurs Immich des phases 24 à 25 restent optionnels et post-2.0.
