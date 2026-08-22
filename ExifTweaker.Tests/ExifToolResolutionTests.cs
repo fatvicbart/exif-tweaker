@@ -62,4 +62,22 @@ public sealed class ExifToolResolutionTests
 
         Assert.IsFalse(ExifToolService.ResolveAvailable(missing));
     }
+
+    [TestMethod]
+    public void ArgumentFileIsUtf8WithoutBomAndPreservesUnicode()
+    {
+        var unicodePath = @"C:\Photos\été\média test.tif";
+
+        var bytes = ExifToolService.EncodeArgumentFile(new[] { "-json", unicodePath });
+
+        Assert.IsFalse(bytes.Length >= 3 && bytes[0] == 0xEF && bytes[1] == 0xBB && bytes[2] == 0xBF);
+        Assert.AreEqual($"-json\n{unicodePath}\n", System.Text.Encoding.UTF8.GetString(bytes));
+    }
+
+    [TestMethod]
+    public void ArgumentFileRejectsLineBreaks()
+    {
+        Assert.ThrowsExactly<ArgumentException>(() =>
+            ExifToolService.EncodeArgumentFile(new[] { "-json", "invalid\nargument" }));
+    }
 }

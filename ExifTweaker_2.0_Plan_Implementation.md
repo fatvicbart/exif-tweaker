@@ -96,10 +96,10 @@ briques réutilisables, sans workflow complet.
 -   compilation et publication Release .NET 10 confirmées avec 0 erreur ;
 -   distribution Windows ExifTool complète : 502 fichiers copiés dans
     les sorties application, tests et publication ;
--   nouvelle suite de 14 tests : 12 réussis localement et 2 tests
+-   nouvelle suite de 16 tests : 14 réussis localement et 2 tests
     d'intégration ExifTool réservés au runner Windows ;
 -   dernier workflow GitHub de référence réussi avec 8 tests sur 8 ; le
-    workflow renforcé doit maintenant valider les 14 tests, la commande
+    workflow renforcé doit maintenant valider les 16 tests, la commande
     `exiftool -ver`, Apply, read-back, backup, restauration et chemin Unicode ;
 -   aucun secret en clair, `BackgroundWorker`, thread manuel ou
     dépendance métier à ExifLibrary détecté.
@@ -107,7 +107,7 @@ briques réutilisables, sans workflow complet.
 ### Prochaine priorité recommandée
 
 1.  Exécuter le workflow GitHub renforcé et conserver son run comme
-    validation Windows de l'ExifTool embarqué et des 14 tests.
+    validation Windows de l'ExifTool embarqué et des 16 tests.
 2.  Qualifier les phases 0 à 15 sous Windows sur un corpus JPG, HEIC,
     RAW, MOV et MP4 et avec au moins 1 000 médias.
 3.  Corriger les défauts révélés par cette qualification pour figer le

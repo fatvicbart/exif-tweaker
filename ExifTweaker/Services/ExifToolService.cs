@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using ExifTweaker.Infrastructure;
 using ExifTweaker.Models;
@@ -112,7 +113,7 @@ public sealed class ExifToolService
             }
         }
 
-        args.Add(item.FilePath);
+        args.Add(Path.GetFullPath(item.FilePath));
         string? warning = null;
         await RunAsync(args, ct, value => warning = value);
         return warning;
@@ -123,7 +124,7 @@ public sealed class ExifToolService
         EnsureAvailable();
         foreach (var tag in new[] { "-PreviewImage", "-JpgFromRaw", "-ThumbnailImage" })
         {
-            var bytes = await RunBinaryAsync(new[] { "-b", tag, filePath }, ct);
+            var bytes = await RunBinaryAsync(new[] { "-b", tag, Path.GetFullPath(filePath) }, ct);
             if (bytes.Length > 0) return bytes;
         }
         return null;
@@ -148,7 +149,7 @@ public sealed class ExifToolService
     {
         var args = new List<string>
         {
-            "-json", "-n", "-charset", "filename=UTF8", "-api", "QuickTimeUTC=1",
+            "-json", "-n", "-api", "QuickTimeUTC=1",
             "-DateTimeOriginal", "-CreateDate", "-MediaCreateDate", "-TrackCreateDate", "-OffsetTimeOriginal",
             "-GPSLatitude", "-GPSLongitude", "-GPSAltitude", "-Make", "-Model", "-LensModel", "-Orientation",
             "-ImageWidth", "-ImageHeight", "-FileType", "-MIMEType", "-FileCreateDate", "-FileModifyDate", "-City", "-Country"
@@ -178,15 +179,8 @@ public sealed class ExifToolService
 
     private async Task<byte[]> RunBinaryAsync(IEnumerable<string> arguments, CancellationToken ct)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = _executable,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+        using var argumentFile = CreateArgumentFile(arguments);
+        var startInfo = CreateStartInfo(argumentFile);
         using var process = new Process { StartInfo = startInfo };
         if (!process.Start()) throw new InvalidOperationException("ExifTool could not be started.");
         using var registration = ct.Register(() =>
@@ -208,16 +202,8 @@ public sealed class ExifToolService
 
     private async Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken ct, Action<string>? warningSink = null)
     {
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = _executable,
-            UseShellExecute = false,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            CreateNoWindow = true
-        };
-        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
-
+        using var argumentFile = CreateArgumentFile(arguments);
+        var startInfo = CreateStartInfo(argumentFile);
         using var process = new Process { StartInfo = startInfo };
         try
         {
@@ -253,6 +239,57 @@ public sealed class ExifToolService
             warningSink?.Invoke(warning);
         }
         return output;
+    }
+
+    private ProcessStartInfo CreateStartInfo(ArgumentFile argumentFile)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = _executable,
+            WorkingDirectory = argumentFile.DirectoryPath,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        startInfo.ArgumentList.Add("-charset");
+        startInfo.ArgumentList.Add("filename=UTF8");
+        startInfo.ArgumentList.Add("-@");
+        startInfo.ArgumentList.Add(argumentFile.FileName);
+        return startInfo;
+    }
+
+    private static ArgumentFile CreateArgumentFile(IEnumerable<string> arguments)
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "ExifTweaker", "arguments");
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, $"args-{Guid.NewGuid():N}.txt");
+        File.WriteAllBytes(path, EncodeArgumentFile(arguments));
+        return new ArgumentFile(path);
+    }
+
+    internal static byte[] EncodeArgumentFile(IEnumerable<string> arguments)
+    {
+        var values = arguments.ToList();
+        if (values.Any(value => value.Contains('\r') || value.Contains('\n')))
+            throw new ArgumentException("ExifTool arguments cannot contain line breaks.", nameof(arguments));
+        return new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)
+            .GetBytes(string.Join("\n", values) + "\n");
+    }
+
+    private sealed class ArgumentFile : IDisposable
+    {
+        public ArgumentFile(string path) => Path = path;
+        public string Path { get; }
+        public string DirectoryPath => System.IO.Path.GetDirectoryName(Path)!;
+        public string FileName => System.IO.Path.GetFileName(Path);
+
+        public void Dispose()
+        {
+            try { File.Delete(Path); }
+            catch (IOException ex) { AppLogger.Info($"ExifTool argument file cleanup skipped: {ex.Message}"); }
+            catch (UnauthorizedAccessException ex) { AppLogger.Info($"ExifTool argument file cleanup skipped: {ex.Message}"); }
+        }
     }
 
     private void EnsureAvailable()
