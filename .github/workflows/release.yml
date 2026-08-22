@@ -1,0 +1,169 @@
+name: Create release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version increment
+        required: true
+        default: patch
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+concurrency:
+  group: create-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, test and release
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Calculate and apply version
+        id: version
+        shell: pwsh
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $projectPath = 'ExifTweaker/ExifTweaker.csproj'
+          $projectContent = [System.IO.File]::ReadAllText($projectPath)
+          $versionPattern = '<Version>(\d+)\.(\d+)\.(\d+)</Version>'
+          $match = [regex]::Match($projectContent, $versionPattern)
+
+          if (-not $match.Success) {
+            throw "No semantic <Version> was found in $projectPath."
+          }
+
+          $major = [int]$match.Groups[1].Value
+          $minor = [int]$match.Groups[2].Value
+          $patch = [int]$match.Groups[3].Value
+
+          switch ($env:BUMP) {
+            'major' { $major++; $minor = 0; $patch = 0 }
+            'minor' { $minor++; $patch = 0 }
+            'patch' { $patch++ }
+            default { throw "Unsupported version increment: $env:BUMP" }
+          }
+
+          $version = "$major.$minor.$patch"
+          $assemblyVersion = "$major.$minor.$patch.0"
+          $tag = "v$version"
+
+          if (git tag --list $tag) {
+            throw "Tag $tag already exists."
+          }
+
+          $projectContent = ([regex]::new('<Version>[^<]+</Version>')).Replace($projectContent, "<Version>$version</Version>", 1)
+          $projectContent = ([regex]::new('<AssemblyVersion>[^<]+</AssemblyVersion>')).Replace($projectContent, "<AssemblyVersion>$assemblyVersion</AssemblyVersion>", 1)
+          $projectContent = ([regex]::new('<FileVersion>[^<]+</FileVersion>')).Replace($projectContent, "<FileVersion>$assemblyVersion</FileVersion>", 1)
+          [System.IO.File]::WriteAllText($projectPath, $projectContent, [System.Text.UTF8Encoding]::new($false))
+
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "archive=ExifTweaker-$version-win-x64.zip" >> $env:GITHUB_OUTPUT
+          "checksum=ExifTweaker-$version-win-x64.zip.sha256" >> $env:GITHUB_OUTPUT
+
+      - name: Restore
+        run: dotnet restore ExifTweaker.sln
+
+      - name: Build and test
+        run: dotnet test ExifTweaker.sln --configuration Release --no-restore
+
+      - name: Publish Windows application
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $publishDirectory = "artifacts/ExifTweaker-$env:VERSION-win-x64"
+          dotnet publish ExifTweaker/ExifTweaker.csproj `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained false `
+            -p:Version=$env:VERSION `
+            --output $publishDirectory
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validate and package release
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+          CHECKSUM: ${{ steps.version.outputs.checksum }}
+        run: |
+          $publishDirectory = "artifacts/ExifTweaker-$env:VERSION-win-x64"
+          $requiredFiles = @(
+            "$publishDirectory/ExifTweaker.exe",
+            "$publishDirectory/exiftool/exiftool.exe",
+            "$publishDirectory/exiftool/exiftool_files/perl.exe"
+          )
+
+          foreach ($requiredFile in $requiredFiles) {
+            if (-not (Test-Path -LiteralPath $requiredFile -PathType Leaf)) {
+              throw "Missing release file: $requiredFile"
+            }
+          }
+
+          & "$publishDirectory/exiftool/exiftool.exe" -ver
+          if ($LASTEXITCODE -ne 0) {
+            throw 'The packaged ExifTool executable failed its smoke test.'
+          }
+
+          Compress-Archive -Path "$publishDirectory/*" -DestinationPath "artifacts/$env:ARCHIVE" -CompressionLevel Optimal
+          $hash = (Get-FileHash -LiteralPath "artifacts/$env:ARCHIVE" -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $env:ARCHIVE" | Set-Content -LiteralPath "artifacts/$env:CHECKSUM" -Encoding ascii
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ExifTweaker-${{ steps.version.outputs.version }}-win-x64
+          path: |
+            artifacts/${{ steps.version.outputs.archive }}
+            artifacts/${{ steps.version.outputs.checksum }}
+          if-no-files-found: error
+
+      - name: Commit version and create tag
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ExifTweaker/ExifTweaker.csproj
+          git commit -m "Release $env:TAG"
+          git tag -a $env:TAG -m "ExifTweaker $env:VERSION"
+          git push --atomic origin HEAD:main $env:TAG
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          ARCHIVE: ${{ steps.version.outputs.archive }}
+          CHECKSUM: ${{ steps.version.outputs.checksum }}
+        run: |
+          gh release create $env:TAG `
+            "artifacts/$env:ARCHIVE" `
+            "artifacts/$env:CHECKSUM" `
+            --verify-tag `
+            --title "ExifTweaker $env:TAG" `
+            --generate-notes
