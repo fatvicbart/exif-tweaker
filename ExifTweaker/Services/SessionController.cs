@@ -15,17 +15,50 @@ public sealed class SessionController
 
     public void StageDate(IEnumerable<PhotoItem> items, DateTime date)
     {
-        var selected = items.ToList();
-        History.Capture(selected);
-        foreach (var item in selected) { item.PendingChanges.CaptureDate = date; item.NotifyChanged(); }
-        Session.NotifyChanged();
+        EditDate(items, new DateEditRequest { Mode = DateEditMode.Set, Date = date });
     }
 
     public void ShiftDate(IEnumerable<PhotoItem> items, TimeSpan shift)
     {
+        EditDate(items, new DateEditRequest
+        {
+            Mode = DateEditMode.Shift,
+            Days = shift.Days,
+            Hours = shift.Hours,
+            Minutes = shift.Minutes,
+            Seconds = shift.Seconds
+        });
+    }
+
+    public void EditDate(IEnumerable<PhotoItem> items, DateEditRequest request)
+    {
         var selected = items.ToList();
         History.Capture(selected);
-        foreach (var item in selected) { item.PendingChanges.CaptureDate = null; item.PendingChanges.DateShift = (item.PendingChanges.DateShift ?? TimeSpan.Zero) + shift; item.NotifyChanged(); }
+        foreach (var item in selected)
+        {
+            var patch = item.PendingChanges;
+            if (request.Mode == DateEditMode.Set)
+            {
+                patch.CaptureDate = request.Date ?? throw new ArgumentException("A date is required in Set mode.", nameof(request));
+                patch.DateShift = null;
+                patch.DateShiftYears = 0;
+                patch.DateShiftMonths = 0;
+            }
+            else
+            {
+                patch.DateShiftYears += request.Years;
+                patch.DateShiftMonths += request.Months;
+                patch.DateShift = (patch.DateShift ?? TimeSpan.Zero) + request.ClockShift;
+            }
+
+            if (request.ChangeTimezone)
+            {
+                patch.OffsetTimeOriginal = request.RemoveTimezone ? null : request.TimezoneOffset;
+                patch.RemoveOffsetTimeOriginal = request.RemoveTimezone;
+                patch.ConvertToOffset = !request.RemoveTimezone && request.TimezoneMode == TimezoneChangeMode.ConvertInstant;
+            }
+            item.NotifyChanged();
+        }
         Session.NotifyChanged();
     }
 

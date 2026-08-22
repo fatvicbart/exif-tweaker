@@ -8,11 +8,13 @@ public sealed record MetadataApplyPreview(int FileCount, int DateChanges, int Lo
 {
     public string FileTypeSummary => string.Join(", ", Files.GroupBy(file => string.IsNullOrWhiteSpace(file.FileType) ? "Unknown" : file.FileType).OrderByDescending(group => group.Count()).ThenBy(group => group.Key).Select(group => $"{group.Key} {group.Count()}"));
 }
-public sealed record MetadataApplyFileResult(string FilePath, bool Succeeded, string? Error, string? FileType = null, bool BackupAvailable = false);
+public sealed record MetadataApplyFileResult(string FilePath, bool Succeeded, string? Error, string? FileType = null, bool BackupAvailable = false, bool Cancelled = false, string? Warning = null);
 public sealed record MetadataApplyResult(IReadOnlyList<MetadataApplyFileResult> Files)
 {
     public int SucceededCount => Files.Count(file => file.Succeeded);
-    public int FailedCount => Files.Count - SucceededCount;
+    public int CancelledCount => Files.Count(file => file.Cancelled);
+    public int FailedCount => Files.Count(file => !file.Succeeded && !file.Cancelled);
+    public bool WasCancelled => CancelledCount > 0;
 }
 
 public sealed class MetadataService
@@ -66,12 +68,33 @@ public sealed class MetadataService
 
     public async Task<MetadataApplyResult> RestoreBackupsAsync(IEnumerable<PhotoItem> items, CancellationToken ct = default)
     {
-        var results = new List<MetadataApplyFileResult>();
-        foreach (var item in items)
+        var pending = items.ToList();
+        var results = new List<MetadataApplyFileResult>(pending.Count);
+        for (var index = 0; index < pending.Count; index++)
         {
-            try { await RestoreBackupAsync(item, ct); results.Add(new MetadataApplyFileResult(item.FilePath, true, null, item.Original.FileType, File.Exists(item.FilePath + "_original"))); }
-            catch (OperationCanceledException) { throw; }
-            catch (Exception ex) { item.Error = ex.Message; AppLogger.Error($"Unable to restore {item.FilePath}.", ex); results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original"))); }
+            var item = pending[index];
+            if (ct.IsCancellationRequested)
+            {
+                results.AddRange(pending.Skip(index).Select(cancelled => new MetadataApplyFileResult(cancelled.FilePath, false, null, cancelled.Original.FileType, File.Exists(cancelled.FilePath + "_original"), Cancelled: true)));
+                break;
+            }
+            try
+            {
+                await RestoreBackupAsync(item, ct);
+                results.Add(new MetadataApplyFileResult(item.FilePath, true, null, item.Original.FileType, File.Exists(item.FilePath + "_original")));
+            }
+            catch (OperationCanceledException)
+            {
+                results.Add(new MetadataApplyFileResult(item.FilePath, false, null, item.Original.FileType, File.Exists(item.FilePath + "_original"), Cancelled: true));
+                results.AddRange(pending.Skip(index + 1).Select(cancelled => new MetadataApplyFileResult(cancelled.FilePath, false, null, cancelled.Original.FileType, File.Exists(cancelled.FilePath + "_original"), Cancelled: true)));
+                break;
+            }
+            catch (Exception ex)
+            {
+                item.Error = ex.Message;
+                AppLogger.Error($"Unable to restore {item.FilePath}.", ex);
+                results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original")));
+            }
         }
         return new MetadataApplyResult(results);
     }
@@ -79,7 +102,7 @@ public sealed class MetadataService
     public async Task RestoreBackupAsync(PhotoItem item, CancellationToken ct = default)
     {
         await _exifTool.RestoreBackupAsync(item, ct);
-        var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, ct);
+        var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, CancellationToken.None);
         if (!readBack.TryGetValue(item.FilePath, out var restored)) throw new InvalidOperationException("ExifTool did not return metadata after restore.");
         item.Original = restored; item.PendingChanges.Clear(); item.Error = null; item.NotifyChanged();
     }
@@ -87,35 +110,91 @@ public sealed class MetadataService
     public async Task<MetadataApplyResult> ApplyPendingChangesAsync(IEnumerable<PhotoItem> items, IProgress<int>? progress = null, CancellationToken ct = default)
     {
         var changed = items.Where(item => item.PendingChanges.HasChanges).ToList();
-        var results = new List<MetadataApplyFileResult>(changed.Count);
+        var results = new MetadataApplyFileResult?[changed.Count];
         var backupOriginal = _settings.BackupStrategy == BackupStrategy.ExifToolOriginal;
-        for (var index = 0; index < changed.Count; index++)
+        using var gate = new SemaphoreSlim(Math.Clamp(_settings.MaxParallelism, 1, 16));
+        var completed = 0;
+
+        async Task ApplyOneAsync(PhotoItem item, int index)
         {
-            ct.ThrowIfCancellationRequested();
-            var item = changed[index];
+            var entered = false;
             try
             {
-                await _exifTool.WriteAsync(item, backupOriginal, ct);
-                var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, ct);
+                await gate.WaitAsync(ct);
+                entered = true;
+                var expected = item.EffectiveMetadata;
+                var patch = item.PendingChanges.Clone();
+                var warning = await _exifTool.WriteAsync(item, backupOriginal, ct);
+                var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, CancellationToken.None);
                 if (!readBack.TryGetValue(item.FilePath, out var refreshed))
                     throw new InvalidOperationException("ExifTool did not return metadata after writing.");
+                if (!VerifyCriticalMetadata(item.FilePath, expected, patch, refreshed, out var verificationError))
+                    throw new InvalidOperationException($"Read-back verification failed: {verificationError}");
+
                 item.Original = refreshed;
                 item.PendingChanges.Clear();
                 item.Error = null;
                 item.NotifyChanged();
-                results.Add(new MetadataApplyFileResult(item.FilePath, true, null, item.Original.FileType, File.Exists(item.FilePath + "_original")));
+                results[index] = new MetadataApplyFileResult(item.FilePath, true, null, refreshed.FileType, File.Exists(item.FilePath + "_original"), Warning: warning);
             }
-            catch (OperationCanceledException) { throw; }
+            catch (OperationCanceledException)
+            {
+                results[index] = new MetadataApplyFileResult(item.FilePath, false, null, item.Original.FileType, File.Exists(item.FilePath + "_original"), Cancelled: true);
+            }
             catch (Exception ex)
             {
                 item.Error = ex.Message;
                 AppLogger.Error($"Unable to apply metadata to {item.FilePath}.", ex);
-                results.Add(new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original")));
+                results[index] = new MetadataApplyFileResult(item.FilePath, false, ex.Message, item.Original.FileType, File.Exists(item.FilePath + "_original"));
             }
-            progress?.Report(changed.Count == 0 ? 100 : (int)(100d * (index + 1) / changed.Count));
+            finally
+            {
+                if (entered) gate.Release();
+                var done = Interlocked.Increment(ref completed);
+                progress?.Report(changed.Count == 0 ? 100 : (int)(100d * done / changed.Count));
+            }
         }
-        return new MetadataApplyResult(results);
+
+        await Task.WhenAll(changed.Select(ApplyOneAsync));
+        for (var index = 0; index < results.Length; index++)
+            results[index] ??= new MetadataApplyFileResult(changed[index].FilePath, false, null, changed[index].Original.FileType, File.Exists(changed[index].FilePath + "_original"), Cancelled: true);
+        return new MetadataApplyResult(results.Select(result => result!).ToList());
     }
+
+    internal static bool VerifyCriticalMetadata(string filePath, PhotoMetadata expected, MetadataPatch patch, PhotoMetadata actual, out string error)
+    {
+        var problems = new List<string>();
+        if (patch.HasDateChange && expected.CaptureDate is DateTime expectedDate)
+        {
+            if (IsVideo(filePath) && expected.Offset is TimeSpan offset)
+                expectedDate = new DateTimeOffset(DateTime.SpecifyKind(expectedDate, DateTimeKind.Unspecified), offset).UtcDateTime;
+            if (!actual.CaptureDate.HasValue || Math.Abs((actual.CaptureDate.Value - expectedDate).TotalSeconds) > 1)
+                problems.Add($"capture date expected {expectedDate:O}, read {actual.CaptureDate:O}");
+        }
+        if (patch.HasOffsetChange && actual.Offset != expected.Offset)
+            problems.Add($"offset expected {expected.Offset}, read {actual.Offset}");
+        if (patch.RemoveLocation)
+        {
+            if (actual.Latitude.HasValue || actual.Longitude.HasValue) problems.Add("GPS removal was not confirmed");
+        }
+        else if (patch.HasLocationChange)
+        {
+            if (!Near(expected.Latitude, actual.Latitude, 0.00001) || !Near(expected.Longitude, actual.Longitude, 0.00001))
+                problems.Add("GPS coordinates differ from requested values");
+            if ((patch.Altitude.HasValue || patch.RemoveAltitude) && !Near(expected.Altitude, actual.Altitude, 0.5))
+                problems.Add("GPS altitude differs from requested value");
+        }
+        error = string.Join("; ", problems);
+        return problems.Count == 0;
+    }
+
+    private static bool Near(double? expected, double? actual, double tolerance) =>
+        !expected.HasValue && !actual.HasValue || expected.HasValue && actual.HasValue && Math.Abs(expected.Value - actual.Value) <= tolerance;
+
+    private static bool IsVideo(string path) =>
+        Path.GetExtension(path).Equals(".mov", StringComparison.OrdinalIgnoreCase) ||
+        Path.GetExtension(path).Equals(".mp4", StringComparison.OrdinalIgnoreCase);
+
     private static string FormatDate(DateTime? value) => value?.ToString("yyyy-MM-dd HH:mm:ss") ?? string.Empty;
 
     private static string FormatLocation(double? latitude, double? longitude, double? altitude)

@@ -6,15 +6,20 @@ public enum BackupStrategy { ExifToolOriginal, OverwriteOriginal }
 
 public sealed class AppSettings
 {
-    public string GeocodingProvider { get; init; } = "Maps.co";
-    public string? MapsCoApiKey { get; init; }
-    public string? ExifToolPath { get; init; }
-    public BackupStrategy BackupStrategy { get; init; } = BackupStrategy.ExifToolOriginal;
-    public int MaxParallelism { get; init; } = Math.Clamp(Environment.ProcessorCount, 2, 8);
-    public bool RecursiveImport { get; init; } = true;
+    public string GeocodingProvider { get; set; } = "Maps.co";
+    public string? MapsCoApiKey { get; set; }
+    public string? ExifToolPath { get; set; }
+    public BackupStrategy BackupStrategy { get; set; } = BackupStrategy.ExifToolOriginal;
+    public int MaxParallelism { get; set; } = Math.Clamp(Environment.ProcessorCount, 2, 8);
+    public bool RecursiveImport { get; set; } = true;
+    public bool ThumbnailDiskCache { get; set; } = true;
+    public string MapTileUrl { get; set; } = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    public string MapAttribution { get; set; } = "OpenStreetMap contributors";
 
     public static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "settings.json");
+    public static string CacheDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "cache");
 
     public static AppSettings Load()
     {
@@ -23,26 +28,34 @@ public sealed class AppSettings
             if (File.Exists(SettingsPath))
             {
                 var saved = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(SettingsPath));
-                if (saved is not null) return saved.WithEnvironmentOverrides();
+                if (saved is not null) return saved.ApplyEnvironmentOverrides();
             }
         }
         catch (Exception ex) { AppLogger.Error("Unable to load settings.", ex); }
-        return new AppSettings().WithEnvironmentOverrides();
+        return new AppSettings().ApplyEnvironmentOverrides();
     }
 
     public void Save()
     {
-        Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
-        File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(SettingsPath)!);
+            File.WriteAllText(SettingsPath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Unable to save settings.", ex);
+            throw;
+        }
     }
 
-    private AppSettings WithEnvironmentOverrides() => new()
+    private AppSettings ApplyEnvironmentOverrides()
     {
-        GeocodingProvider = GeocodingProvider,
-        MapsCoApiKey = Environment.GetEnvironmentVariable("EXIFTWEAKER_MAPSCO_API_KEY") ?? MapsCoApiKey,
-        ExifToolPath = Environment.GetEnvironmentVariable("EXIFTWEAKER_EXIFTOOL_PATH") ?? ExifToolPath,
-        BackupStrategy = BackupStrategy,
-        MaxParallelism = Math.Clamp(MaxParallelism, 1, 16),
-        RecursiveImport = RecursiveImport
-    };
+        MapsCoApiKey = Environment.GetEnvironmentVariable("EXIFTWEAKER_MAPSCO_API_KEY") ?? MapsCoApiKey;
+        ExifToolPath = Environment.GetEnvironmentVariable("EXIFTWEAKER_EXIFTOOL_PATH") ?? ExifToolPath;
+        MaxParallelism = Math.Clamp(MaxParallelism, 1, 16);
+        GeocodingProvider = string.IsNullOrWhiteSpace(GeocodingProvider) ? "Maps.co" : GeocodingProvider;
+        MapTileUrl = string.IsNullOrWhiteSpace(MapTileUrl) ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" : MapTileUrl;
+        return this;
+    }
 }

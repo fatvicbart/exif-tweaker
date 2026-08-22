@@ -1,0 +1,22 @@
+<Project Sdk="MSTest.Sdk/4.3.3">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\ExifTweaker\Models\DateEditRequest.cs" Link="Source\Models\DateEditRequest.cs" />
+    <Compile Include="..\ExifTweaker\Models\ImportSession.cs" Link="Source\Models\ImportSession.cs" />
+    <Compile Include="..\ExifTweaker\Models\GpsCoordinate.cs" Link="Source\Models\GpsCoordinate.cs" />
+    <Compile Include="..\ExifTweaker\Models\MetadataPatch.cs" Link="Source\Models\MetadataPatch.cs" />
+    <Compile Include="..\ExifTweaker\Models\PhotoItem.cs" Link="Source\Models\PhotoItem.cs" />
+    <Compile Include="..\ExifTweaker\Models\PhotoMetadata.cs" Link="Source\Models\PhotoMetadata.cs" />
+    <Compile Include="..\ExifTweaker\Infrastructure\AppLogger.cs" Link="Source\Infrastructure\AppLogger.cs" />
+    <Compile Include="..\ExifTweaker\Infrastructure\AppSettings.cs" Link="Source\Infrastructure\AppSettings.cs" />
+    <Compile Include="..\ExifTweaker\Services\EditHistory.cs" Link="Source\Services\EditHistory.cs" />
+    <Compile Include="..\ExifTweaker\Services\ExifToolService.cs" Link="Source\Services\ExifToolService.cs" />
+    <Compile Include="..\ExifTweaker\Services\LocationEditorService.cs" Link="Source\Services\LocationEditorService.cs" />
+    <Compile Include="..\ExifTweaker\Services\MetadataService.cs" Link="Source\Services\MetadataService.cs" />
+    <Compile Include="..\ExifTweaker\Services\SessionController.cs" Link="Source\Services\SessionController.cs" />
+  </ItemGroup>
+</Project>

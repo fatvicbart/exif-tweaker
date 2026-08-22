@@ -57,7 +57,13 @@ public sealed class ImportSession : INotifyPropertyChanged
 
     public void AddRange(IEnumerable<PhotoItem> items)
     {
-        foreach (var item in items) Media.Add(item);
+        Media.RaiseListChangedEvents = false;
+        try { foreach (var item in items) Media.Add(item); }
+        finally
+        {
+            Media.RaiseListChangedEvents = true;
+            Media.ResetBindings();
+        }
         OnPropertyChanged(string.Empty);
     }
 

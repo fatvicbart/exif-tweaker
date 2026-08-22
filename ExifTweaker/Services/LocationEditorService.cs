@@ -2,8 +2,6 @@ using ExifTweaker.Models;
 
 namespace ExifTweaker.Services;
 
-public sealed record GpsClipboard(double Latitude, double Longitude, double? Altitude);
-
 public sealed class LocationEditorService
 {
     public void SetLocation(IEnumerable<PhotoItem> items, double latitude, double longitude, double? altitude = null)
@@ -33,11 +31,11 @@ public sealed class LocationEditorService
         }
     }
 
-    public static GpsClipboard CopyLocation(PhotoItem item)
+    public static GpsCoordinate CopyLocation(PhotoItem item)
     {
         if (item.EffectiveLatitude is not double latitude || item.EffectiveLongitude is not double longitude)
             throw new InvalidOperationException("The selected item has no GPS coordinates to copy.");
-        return new GpsClipboard(latitude, longitude, item.EffectiveAltitude);
+        return new GpsCoordinate(latitude, longitude, item.EffectiveAltitude);
     }
 
     public static void Validate(double latitude, double longitude, double? altitude = null)

@@ -22,6 +22,24 @@ public sealed class EditHistory
     public bool Redo(IEnumerable<PhotoItem> items) => Restore(_redo, _undo, items);
     public void Clear() { _undo.Clear(); _redo.Clear(); }
 
+    public void Forget(IEnumerable<PhotoItem> items)
+    {
+        var forgotten = items.ToHashSet();
+        Filter(_undo, forgotten);
+        Filter(_redo, forgotten);
+    }
+
+    private static void Filter(Stack<IReadOnlyDictionary<PhotoItem, MetadataPatch>> stack, ISet<PhotoItem> forgotten)
+    {
+        var retained = stack
+            .Select(snapshot => (IReadOnlyDictionary<PhotoItem, MetadataPatch>)snapshot.Where(pair => !forgotten.Contains(pair.Key)).ToDictionary())
+            .Where(snapshot => snapshot.Count > 0)
+            .Reverse()
+            .ToList();
+        stack.Clear();
+        foreach (var snapshot in retained) stack.Push(snapshot);
+    }
+
     private static bool Restore(Stack<IReadOnlyDictionary<PhotoItem, MetadataPatch>> source, Stack<IReadOnlyDictionary<PhotoItem, MetadataPatch>> destination, IEnumerable<PhotoItem> items)
     {
         if (!source.TryPop(out var snapshot)) return false;

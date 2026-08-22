@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Globalization;
 using ExifTweaker.Infrastructure;
 using ExifTweaker.Controls;
+using ExifTweaker.Forms;
 using ExifTweaker.Models;
 using ExifTweaker.Services;
 
@@ -12,29 +14,40 @@ public partial class Form1 : Form
     private readonly ImportSession _session = new();
     private readonly EditHistory _history = new();
     private readonly SessionController _sessionController;
-    private readonly ThumbnailService _thumbnails = new();
+    private readonly ExifToolService _exifTool;
+    private readonly ThumbnailService _thumbnails;
     private readonly LocationEditorService _locations = new();
     private MapControl _map => mapControl;
     private readonly BindingSource _bindingSource = new();
+    private readonly BindingList<PhotoItem> _view = new();
+    private readonly ConcurrentDictionary<string, Image> _gridThumbnails = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _thumbnailLoads = new(StringComparer.OrdinalIgnoreCase);
     private Func<PhotoItem, bool> _activeFilter = _ => true;
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
     private readonly MetadataService _metadata;
     private readonly IGeocodingService _geocoding;
-    private GpsClipboard? _gpsClipboard;
+    private GpsCoordinate? _gpsClipboard;
     private CancellationTokenSource? _operationCts;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
-        .Select(row => row.DataBoundItem as PhotoItem).Where(item => item is not null).Cast<PhotoItem>().ToList();
+        .Select(row => row.DataBoundItem as PhotoItem)
+        .Concat(_session.Media.Where(item => item.IsSelected))
+        .Where(item => item is not null)
+        .Cast<PhotoItem>()
+        .Distinct()
+        .ToList();
 
     public Form1()
     {
-        _metadata = new MetadataService(new ExifToolService(_settings.ExifToolPath), _settings);
+        _exifTool = new ExifToolService(_settings.ExifToolPath);
+        _metadata = new MetadataService(_exifTool, _settings);
+        _thumbnails = new ThumbnailService(_exifTool, _settings);
         _geocoding = new GeocodingService(_settings);
         _sessionController = new SessionController(_session, _history);
         InitializeComponent();
-        _bindingSource.DataSource = _files;
+        _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
         bChange.Text = "STAGE";
         WireCommands();
@@ -42,10 +55,11 @@ public partial class Form1 : Form
         _map.MapLocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
         Shown += async (_, _) =>
         {
-            try { await _map.InitializeAsync(); }
+            try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution); }
             catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); MessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         };
         _session.PropertyChanged += (_, _) => { UpdateSessionCaption(); RefreshFilter(); };
+        RefreshFilter();
         UpdateSessionCaption();
     }
 
@@ -70,6 +84,17 @@ public partial class Form1 : Form
         if (dialog.ShowDialog() == DialogResult.OK) await AddFilesAsync(dialog.FileNames);
     }
 
+    private async Task OpenFolderAsync()
+    {
+        using var dialog = new FolderBrowserDialog
+        {
+            Description = "Select a folder containing photos or videos",
+            ShowNewFolderButton = false,
+            UseDescriptionForTitle = true
+        };
+        if (dialog.ShowDialog(this) == DialogResult.OK) await AddFilesAsync(new[] { dialog.SelectedPath });
+    }
+
     private void Form1_DragEnter(object sender, DragEventArgs e)
     {
         if (e.Data?.GetDataPresent(DataFormats.FileDrop) == true) e.Effect = DragDropEffects.Copy;
@@ -88,6 +113,12 @@ public partial class Form1 : Form
             var ct = StartOperation();
             var discovery = await _discovery.DiscoverAsync(paths, _settings.RecursiveImport, ct);
             foreach (var error in discovery.Errors) AppLogger.Info(error);
+            if (discovery.Errors.Count > 0)
+            {
+                var details = string.Join(Environment.NewLine, discovery.Errors.Take(8));
+                if (discovery.Errors.Count > 8) details += $"{Environment.NewLine}… and {discovery.Errors.Count - 8} more.";
+                MessageBox.Show(details, "Some paths could not be imported", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
             var existing = _files.Select(item => item.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var newPaths = discovery.Files.Where(path => !existing.Contains(path)).ToList();
             if (newPaths.Count == 0) return;
@@ -116,7 +147,9 @@ public partial class Form1 : Form
             var ct = StartOperation();
             var progress = new Progress<int>(value => pgb.Value = value);
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
-            if (result.FailedCount == 0) _history.Clear();
+            var succeeded = photos.Where(photo => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(photo.FilePath, StringComparison.OrdinalIgnoreCase))).ToList();
+            _history.Forget(succeeded);
+            foreach (var item in succeeded) _thumbnails.Invalidate(item.FilePath);
             _session.NotifyChanged();
             using var report = new ApplyReportForm(result);
             report.ShowDialog(this);
@@ -163,6 +196,33 @@ public partial class Form1 : Form
         previous?.Dispose();
     }
 
+    private async void dgv_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    {
+        if (e.RowIndex < 0 || e.ColumnIndex != thumbnailColumn.Index || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
+        if (_gridThumbnails.TryGetValue(item.FilePath, out var cached))
+        {
+            e.Value = cached;
+            e.FormattingApplied = true;
+            return;
+        }
+        if (!_thumbnailLoads.TryAdd(item.FilePath, 0)) return;
+        try
+        {
+            var image = await _thumbnails.GetAsync(item.FilePath, 96, _operationCts?.Token ?? CancellationToken.None);
+            if (IsDisposed) { image.Dispose(); return; }
+            _gridThumbnails[item.FilePath] = image;
+            if (_gridThumbnails.Count > 300)
+            {
+                var removable = _gridThumbnails.Keys.FirstOrDefault(key => !key.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase));
+                if (removable is not null && _gridThumbnails.TryRemove(removable, out var removed)) removed.Dispose();
+            }
+            var row = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(candidate => ReferenceEquals(candidate.DataBoundItem, item));
+            if (row is not null) dgv.InvalidateRow(row.Index);
+        }
+        catch (OperationCanceledException) { }
+        finally { _thumbnailLoads.TryRemove(item.FilePath, out _); }
+    }
+
     private void dgv_RowPostPaint(object sender, DataGridViewRowPostPaintEventArgs e)
     {
         if (sender is not DataGridView grid || !grid.RowHeadersVisible) return;
@@ -185,6 +245,10 @@ public partial class Form1 : Form
     private void WireCommands()
     {
         Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        Command("openFolderCommand").Click += async (_, _) => await OpenFolderAsync();
+        Command("dateEditorCommand").Click += (_, _) => OpenDateEditor();
+        Command("settingsCommand").Click += async (_, _) => await OpenSettingsAsync();
+        Command("cancelCommand").Click += (_, _) => _operationCts?.Cancel();
         Command("undoCommand").Click += (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); };
         Command("redoCommand").Click += (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); };
         Command("resetSelectedCommand").Click += (_, _) => ResetPatches(SelectedItems);
@@ -215,7 +279,37 @@ public partial class Form1 : Form
 
     private void RefreshFilter()
     {
-        _bindingSource.DataSource = new BindingList<PhotoItem>(_session.Media.Where(_activeFilter).ToList());
+        var desired = _session.Media.Where(_activeFilter).ToList();
+        for (var index = _view.Count - 1; index >= 0; index--)
+            if (!desired.Contains(_view[index])) _view.RemoveAt(index);
+        for (var index = 0; index < desired.Count; index++)
+        {
+            if (index < _view.Count && ReferenceEquals(_view[index], desired[index])) continue;
+            var existing = _view.IndexOf(desired[index]);
+            if (existing >= 0) _view.RemoveAt(existing);
+            _view.Insert(Math.Min(index, _view.Count), desired[index]);
+        }
+        _bindingSource.ResetBindings(false);
+    }
+
+    private void OpenDateEditor()
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0) return;
+        var dates = selected.Select(item => item.EffectiveCaptureDate).Distinct().ToList();
+        var offsets = selected.Select(item => item.EffectiveOffset).Distinct().ToList();
+        using var dialog = new DateEditorForm(dates.Count == 1 ? dates[0] : null, offsets.Count == 1 ? offsets[0] : null, dates.Count > 1 || offsets.Count > 1);
+        if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Request is not null)
+            _sessionController.EditDate(selected, dialog.Request);
+    }
+
+    private async Task OpenSettingsAsync()
+    {
+        using var dialog = new SettingsForm(_settings);
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+        try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution); }
+        catch (Exception ex) { AppLogger.Error("Map reconfiguration failed.", ex); }
+        MessageBox.Show("Settings saved. Restart the application after changing the ExifTool path.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void StageGpsFromFields()
@@ -316,7 +410,7 @@ public partial class Form1 : Form
             .Where(item => item.EffectiveLatitude.HasValue && item.EffectiveLongitude.HasValue)
             .Select(item => new MapMarker(item.EffectiveLatitude!.Value, item.EffectiveLongitude!.Value, item.FileName, ReferenceEquals(item, active)))
             .ToList();
-        _ = _map.SetMarkersAsync(markers);
+        _ = _map.SetMarkersAsync(markers, _session.Media.Count - markers.Count);
     }
 
     private void ShiftSelected(TimeSpan shift)
@@ -333,6 +427,9 @@ public partial class Form1 : Form
         try
         {
             var result = await _metadata.RestoreBackupsAsync(selected, StartOperation());
+            foreach (var item in selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))))
+                _thumbnails.Invalidate(item.FilePath);
+            _history.Forget(selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))));
             _session.NotifyChanged();
             using var report = new ApplyReportForm(result) { Text = "Restore report" };
             report.ShowDialog(this);
@@ -368,6 +465,17 @@ public partial class Form1 : Form
         base.OnFormClosing(e);
     }
 
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        _operationCts?.Dispose();
+        foreach (var image in _gridThumbnails.Values) image.Dispose();
+        _gridThumbnails.Clear();
+        picBox.Image?.Dispose();
+        _thumbnails.Dispose();
+        if (_geocoding is IDisposable disposable) disposable.Dispose();
+        base.OnFormClosed(e);
+    }
+
     private CancellationToken StartOperation()
     {
         _operationCts?.Cancel();
@@ -379,7 +487,9 @@ public partial class Form1 : Form
     private void SetBusy(bool busy)
     {
         main.Enabled = !busy;
-        commands.Enabled = !busy;
+        foreach (ToolStripItem item in commands.Items) item.Enabled = !busy;
+        cancelCommand.Enabled = busy;
+        operationStatus.Text = busy ? "Working… (Esc to cancel)" : "Ready";
         if (busy) pgb.Value = 0;
     }
 

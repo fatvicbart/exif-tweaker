@@ -10,6 +10,7 @@ public sealed record PhotoMetadata
     public string? CameraMake { get; init; }
     public string? CameraModel { get; init; }
     public string? Lens { get; init; }
+    public int? Orientation { get; init; }
     public int? Width { get; init; }
     public int? Height { get; init; }
     public string? FileType { get; init; }

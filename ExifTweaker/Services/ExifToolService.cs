@@ -29,23 +29,41 @@ public sealed class ExifToolService
         return result;
     }
 
-    public async Task WriteAsync(PhotoItem item, bool backupOriginal = true, CancellationToken ct = default)
+    public async Task<string?> WriteAsync(PhotoItem item, bool backupOriginal = true, CancellationToken ct = default)
     {
         EnsureAvailable();
         var patch = item.PendingChanges;
-        if (!patch.HasChanges) return;
+        if (!patch.HasChanges) return null;
 
         var args = new List<string>();
-        if (!backupOriginal) args.Add("-overwrite_original");
+        if (!backupOriginal || File.Exists(item.FilePath + "_original")) args.Add("-overwrite_original");
+        var isVideo = IsVideo(item.FilePath);
 
         if (patch.HasDateChange)
         {
             if (item.EffectiveCaptureDate is not DateTime date)
                 throw new InvalidOperationException("A date patch requires a capture date.");
-            var value = date.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture);
-            args.Add($"-DateTimeOriginal={value}");
-            args.Add($"-CreateDate={value}");
-            args.Add($"-ModifyDate={value}");
+            if (isVideo)
+            {
+                var utc = item.EffectiveOffset is TimeSpan offset
+                    ? new DateTimeOffset(DateTime.SpecifyKind(date, DateTimeKind.Unspecified), offset).UtcDateTime
+                    : DateTime.SpecifyKind(date, DateTimeKind.Utc);
+                var value = utc.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture);
+                args.Add("-api"); args.Add("QuickTimeUTC=1");
+                args.Add($"-QuickTime:CreateDate={value}");
+                args.Add($"-QuickTime:ModifyDate={value}");
+                args.Add($"-TrackCreateDate={value}");
+                args.Add($"-TrackModifyDate={value}");
+                args.Add($"-MediaCreateDate={value}");
+                args.Add($"-MediaModifyDate={value}");
+            }
+            else
+            {
+                var value = date.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture);
+                args.Add($"-DateTimeOriginal={value}");
+                args.Add($"-CreateDate={value}");
+                args.Add($"-ModifyDate={value}");
+            }
         }
 
         if (patch.RemoveOffsetTimeOriginal) args.Add("-OffsetTimeOriginal=");
@@ -54,6 +72,7 @@ public sealed class ExifToolService
 
         if (patch.RemoveLocation)
         {
+            if (isVideo) args.Add("-QuickTime:GPSCoordinates=");
             args.Add("-GPSLatitude="); args.Add("-GPSLongitude=");
             args.Add("-GPSLatitudeRef="); args.Add("-GPSLongitudeRef=");
             args.Add("-GPSAltitude="); args.Add("-GPSAltitudeRef=");
@@ -61,6 +80,11 @@ public sealed class ExifToolService
         else if (patch.HasLocationChange && item.EffectiveLatitude is double lat && item.EffectiveLongitude is double lon)
         {
             ValidateCoordinates(lat, lon);
+            if (isVideo)
+            {
+                var altitude = item.EffectiveAltitude ?? 0d;
+                args.Add($"-QuickTime:GPSCoordinates={lat.ToString(CultureInfo.InvariantCulture)} {lon.ToString(CultureInfo.InvariantCulture)} {altitude.ToString(CultureInfo.InvariantCulture)}");
+            }
             args.Add($"-GPSLatitude={lat.ToString(CultureInfo.InvariantCulture)}");
             args.Add($"-GPSLongitude={lon.ToString(CultureInfo.InvariantCulture)}");
             args.Add($"-GPSLatitudeRef={(lat < 0 ? "S" : "N")}");
@@ -78,7 +102,20 @@ public sealed class ExifToolService
         }
 
         args.Add(item.FilePath);
-        await RunAsync(args, ct);
+        string? warning = null;
+        await RunAsync(args, ct, value => warning = value);
+        return warning;
+    }
+
+    public async Task<byte[]?> ExtractPreviewAsync(string filePath, CancellationToken ct = default)
+    {
+        EnsureAvailable();
+        foreach (var tag in new[] { "-PreviewImage", "-JpgFromRaw", "-ThumbnailImage" })
+        {
+            var bytes = await RunBinaryAsync(new[] { "-b", tag, filePath }, ct);
+            if (bytes.Length > 0) return bytes;
+        }
+        return null;
     }
 
     public Task RestoreBackupAsync(PhotoItem item, CancellationToken ct = default) => Task.Run(() =>
@@ -100,10 +137,10 @@ public sealed class ExifToolService
     {
         var args = new List<string>
         {
-            "-json", "-n", "-charset", "filename=UTF8",
-            "-DateTimeOriginal", "-CreateDate", "-OffsetTimeOriginal", "-GPSLatitude", "-GPSLongitude", "-GPSAltitude",
-            "-Make", "-Model", "-LensModel", "-ImageWidth", "-ImageHeight", "-FileType", "-MIMEType",
-            "-FileCreateDate", "-FileModifyDate", "-City", "-Country"
+            "-json", "-n", "-charset", "filename=UTF8", "-api", "QuickTimeUTC=1",
+            "-DateTimeOriginal", "-CreateDate", "-MediaCreateDate", "-TrackCreateDate", "-OffsetTimeOriginal",
+            "-GPSLatitude", "-GPSLongitude", "-GPSAltitude", "-Make", "-Model", "-LensModel", "-Orientation",
+            "-ImageWidth", "-ImageHeight", "-FileType", "-MIMEType", "-FileCreateDate", "-FileModifyDate", "-City", "-Country"
         };
         args.AddRange(files);
         var output = await RunAsync(args, ct);
@@ -115,10 +152,11 @@ public sealed class ExifToolService
             if (string.IsNullOrWhiteSpace(source)) continue;
             result[Path.GetFullPath(source)] = new PhotoMetadata
             {
-                CaptureDate = ParseExifDate(GetString(item, "DateTimeOriginal") ?? GetString(item, "CreateDate")),
+                CaptureDate = ParseExifDate(GetString(item, "DateTimeOriginal") ?? GetString(item, "CreateDate") ?? GetString(item, "MediaCreateDate") ?? GetString(item, "TrackCreateDate")),
                 Offset = ParseOffset(GetString(item, "OffsetTimeOriginal")),
                 Latitude = GetDouble(item, "GPSLatitude"), Longitude = GetDouble(item, "GPSLongitude"), Altitude = GetDouble(item, "GPSAltitude"),
                 CameraMake = GetString(item, "Make"), CameraModel = GetString(item, "Model"), Lens = GetString(item, "LensModel"),
+                Orientation = GetInt(item, "Orientation"),
                 Width = GetInt(item, "ImageWidth"), Height = GetInt(item, "ImageHeight"), FileType = GetString(item, "FileType"), MimeType = GetString(item, "MIMEType"),
                 FileCreateDate = ParseExifDate(GetString(item, "FileCreateDate")), FileModifyDate = ParseExifDate(GetString(item, "FileModifyDate")),
                 City = GetString(item, "City"), Country = GetString(item, "Country")
@@ -127,7 +165,37 @@ public sealed class ExifToolService
         return result;
     }
 
-    private async Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken ct)
+    private async Task<byte[]> RunBinaryAsync(IEnumerable<string> arguments, CancellationToken ct)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = _executable,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+        using var process = new Process { StartInfo = startInfo };
+        if (!process.Start()) throw new InvalidOperationException("ExifTool could not be started.");
+        using var registration = ct.Register(() =>
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch (InvalidOperationException) { }
+        });
+        await using var memory = new MemoryStream();
+        var outputTask = process.StandardOutput.BaseStream.CopyToAsync(memory, ct);
+        var errorTask = process.StandardError.ReadToEndAsync(ct);
+        await process.WaitForExitAsync(ct);
+        await outputTask;
+        var error = await errorTask;
+        ct.ThrowIfCancellationRequested();
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException($"ExifTool preview extraction failed ({process.ExitCode}): {error}");
+        return memory.ToArray();
+    }
+
+    private async Task<string> RunAsync(IEnumerable<string> arguments, CancellationToken ct, Action<string>? warningSink = null)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -167,6 +235,12 @@ public sealed class ExifToolService
             AppLogger.Error("ExifTool execution failed.", exception);
             throw exception;
         }
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            var warning = error.Trim();
+            AppLogger.Info($"ExifTool warning: {warning}");
+            warningSink?.Invoke(warning);
+        }
         return output;
     }
 
@@ -195,8 +269,13 @@ public sealed class ExifToolService
                 RedirectStandardOutput = true,
                 CreateNoWindow = true
             });
-            process?.WaitForExit(1500);
-            return process?.ExitCode == 0;
+            if (process is null) return false;
+            if (!process.WaitForExit(1500))
+            {
+                try { process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+                return false;
+            }
+            return process.ExitCode == 0;
         }
         catch { return false; }
     }
@@ -207,7 +286,8 @@ public sealed class ExifToolService
             throw new ArgumentOutOfRangeException(nameof(latitude), "GPS coordinates are outside their valid ranges.");
     }
 
-    private static string FormatExifOffset(TimeSpan offset) => $"{(offset < TimeSpan.Zero ? "-" : "+")}{Math.Abs(offset.Hours):00}:{Math.Abs(offset.Minutes):00}";
+    private static bool IsVideo(string path) => Path.GetExtension(path) is var extension && (extension.Equals(".mov", StringComparison.OrdinalIgnoreCase) || extension.Equals(".mp4", StringComparison.OrdinalIgnoreCase));
+    private static string FormatExifOffset(TimeSpan offset) => $"{(offset < TimeSpan.Zero ? "-" : "+")}{Math.Abs((int)offset.TotalHours):00}:{Math.Abs(offset.Minutes):00}";
     private static string? GetString(JsonElement element, string name) => element.TryGetProperty(name, out var property) ? property.ToString() : null;
     private static double? GetDouble(JsonElement element, string name) => element.TryGetProperty(name, out var property) && property.TryGetDouble(out var value) ? value : null;
     private static int? GetInt(JsonElement element, string name) => element.TryGetProperty(name, out var property) && property.TryGetInt32(out var value) ? value : null;
