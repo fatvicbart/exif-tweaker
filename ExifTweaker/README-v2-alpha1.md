@@ -62,3 +62,9 @@ backup and byte-identical restoration.
 
 Keep testing on copies of JPEG, HEIC, RAW, MOV and MP4 files until these
 operations have also been verified with your real media set.
+
+## Release workflow
+
+For a complete French step-by-step guide to creating, checking and
+downloading a release from GitHub Actions, see
+[`GUIDE_RELEASE_GITHUB.md`](../GUIDE_RELEASE_GITHUB.md).
