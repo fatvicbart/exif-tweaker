@@ -31,6 +31,10 @@ public partial class Form1 : Form
     private bool _isBusy;
     private string _activeFilterName = "Tous";
     private GpsCoordinate? _gpsClipboard;
+    private readonly System.Windows.Forms.Timer _gpsSearchTimer = new() { Interval = 450 };
+    private CancellationTokenSource? _gpsSearchCts;
+    private bool _gpsSearchInProgress;
+    private bool _updatingGpsSuggestions;
     private CancellationTokenSource? _operationCts;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
@@ -52,9 +56,11 @@ public partial class Form1 : Form
         InitializeNavigation();
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
-        bChange.Text = "PRÉPARER DATE";
+        bChange.Text = "PRÉPARER";
+        bChange.AccessibleDescription = "Prépare la date et les coordonnées GPS affichées";
         bOpen.Text = "FICHIERS…";
         bGPS.Text = "RECHERCHER";
+        tGPS.DisplayMember = nameof(Coordinates.Name);
         WireCommands();
         UpdateMapChecks();
         _map.BringToFront();
@@ -72,8 +78,18 @@ public partial class Form1 : Form
     private void button1_Click(object sender, EventArgs e)
     {
         var selected = SelectedItems;
-        if (selected.Count == 0) return;
-        _sessionController.StageDate(selected, dateTimePicker1.Value);
+        if (selected.Count == 0)
+        {
+            MessageBox.Show("Sélectionnez au moins une image.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        if (!TryGpsFromFields(allowEmpty: true, out var location)) return;
+        _sessionController.StageVisibleValues(selected, dateTimePicker1.Value, location, _locations);
+        RefreshMapMarkers();
+        operationStatus.Text = location is null
+            ? $"Date préparée pour {selected.Count} fichier(s)."
+            : $"Date et GPS préparés pour {selected.Count} fichier(s).";
     }
 
     private async void button2_Click(object? sender, EventArgs e)
@@ -161,27 +177,128 @@ public partial class Form1 : Form
             report.ShowDialog(this);
         }
         catch (OperationCanceledException) { AppLogger.Info("Apply cancelled."); }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Apply failed.", ex);
+            MessageBox.Show(ex.Message, "Apply error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         finally { SetBusy(false); }
     }
 
     private async void bGPS_Click(object? sender, EventArgs e)
     {
+        await SearchGpsSuggestionsAsync(showNoResultMessage: true);
+    }
+
+    private void ScheduleGpsSearch()
+    {
+        if (_updatingGpsSuggestions) return;
+        _gpsSearchTimer.Stop();
+        _gpsSearchCts?.Cancel();
+        if (tGPS.Text.Trim().Length < 2)
+        {
+            ClearGpsSuggestions();
+            UpdateCommandState();
+            return;
+        }
+        _gpsSearchTimer.Start();
+        UpdateCommandState();
+    }
+
+    private async Task SearchGpsSuggestionsAsync(bool showNoResultMessage)
+    {
+        _gpsSearchTimer.Stop();
+        var query = tGPS.Text.Trim();
+        if (query.Length < 2)
+        {
+            if (showNoResultMessage)
+                MessageBox.Show("Saisissez au moins deux caractères pour rechercher un lieu.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        _gpsSearchCts?.Cancel();
+        _gpsSearchCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _gpsSearchCts = cts;
+        _gpsSearchInProgress = true;
+        operationStatus.Text = "Recherche du lieu…";
+        UpdateCommandState();
         try
         {
-            SetBusy(true);
-            var results = await _geocoding.SearchAsync(tGPS.Text, StartOperation());
-            if (results.Count == 0) { MessageBox.Show("No location found."); return; }
-            using var chooser = new GeocodingSelectionForm(results);
-            if (chooser.ShowDialog(this) != DialogResult.OK || chooser.Selected is not Coordinates selected) return;
-            tLat.Text = selected.Latitude.ToString(CultureInfo.InvariantCulture);
-            tLon.Text = selected.Longitude.ToString(CultureInfo.InvariantCulture);
-            tAlt.Text = selected.Altitude?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
-            tName.Text = selected.Name;
-            tType.Text = selected.Type;
+            var results = await _geocoding.SearchAsync(query, cts.Token);
+            if (cts.IsCancellationRequested || !query.Equals(tGPS.Text.Trim(), StringComparison.Ordinal)) return;
+            PopulateGpsSuggestions(results, query);
+            operationStatus.Text = results.Count == 0 ? "Aucun lieu trouvé." : $"{results.Count} lieu(x) proposé(s).";
+            if (results.Count == 0 && showNoResultMessage)
+                MessageBox.Show("Aucun lieu trouvé.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (OperationCanceledException) { AppLogger.Info("Geocoding cancelled."); }
-        catch (Exception ex) { AppLogger.Error("Geocoding failed.", ex); MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
-        finally { SetBusy(false); }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Geocoding failed.", ex);
+            operationStatus.Text = "Échec de la recherche du lieu.";
+            if (showNoResultMessage)
+                MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            if (ReferenceEquals(_gpsSearchCts, cts))
+            {
+                _gpsSearchInProgress = false;
+                UpdateCommandState();
+            }
+        }
+    }
+
+    private void PopulateGpsSuggestions(IReadOnlyList<Coordinates> results, string query)
+    {
+        _updatingGpsSuggestions = true;
+        try
+        {
+            tGPS.BeginUpdate();
+            tGPS.Items.Clear();
+            foreach (var result in results) tGPS.Items.Add(result);
+            tGPS.SelectedIndex = -1;
+            tGPS.Text = query;
+            tGPS.SelectionStart = tGPS.Text.Length;
+            tGPS.SelectionLength = 0;
+            tGPS.DroppedDown = results.Count > 0 && tGPS.Focused;
+        }
+        finally
+        {
+            tGPS.EndUpdate();
+            _updatingGpsSuggestions = false;
+        }
+    }
+
+    private void ClearGpsSuggestions()
+    {
+        _updatingGpsSuggestions = true;
+        try
+        {
+            tGPS.DroppedDown = false;
+            tGPS.Items.Clear();
+            tGPS.SelectedIndex = -1;
+        }
+        finally { _updatingGpsSuggestions = false; }
+    }
+
+    private void SelectGpsSuggestion()
+    {
+        if (_updatingGpsSuggestions || tGPS.SelectedItem is not Coordinates selected) return;
+        tGPS.Text = selected.Name;
+        tGPS.SelectionStart = tGPS.Text.Length;
+        SetGpsFields(selected);
+        StageGps(new GpsCoordinate(selected.Latitude, selected.Longitude, selected.Altitude));
+    }
+
+    private void SetGpsFields(Coordinates selected)
+    {
+        tLat.Text = selected.Latitude.ToString(CultureInfo.InvariantCulture);
+        tLon.Text = selected.Longitude.ToString(CultureInfo.InvariantCulture);
+        tAlt.Text = selected.Altitude?.ToString(CultureInfo.InvariantCulture) ?? string.Empty;
+        tName.Text = selected.Name;
+        tType.Text = selected.Type;
     }
 
     private void dgv_KeyDown(object sender, KeyEventArgs e)
@@ -196,10 +313,20 @@ public partial class Form1 : Form
         if (e.RowIndex < 0 || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
         DisplayActiveMetadata(item);
         if (_map.Visible) RefreshMapMarkers();
-        var image = await _thumbnails.GetAsync(item.FilePath, 1600);
-        var previous = picBox.Image;
-        picBox.Image = image;
-        previous?.Dispose();
+        try
+        {
+            var image = await _thumbnails.GetAsync(item.FilePath, 1600, _operationCts?.Token ?? CancellationToken.None);
+            if (IsDisposed) { image.Dispose(); return; }
+            var previous = picBox.Image;
+            picBox.Image = image;
+            previous?.Dispose();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Preview failed for {item.FilePath}.", ex);
+            operationStatus.Text = "Aperçu indisponible — consultez les journaux.";
+        }
     }
 
     private async void dgv_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -238,10 +365,17 @@ public partial class Form1 : Form
 
     protected override bool ProcessCmdKey(ref Message message, Keys keyData)
     {
-        if (keyData == Keys.Escape && _operationCts is { IsCancellationRequested: false }) { _operationCts.Cancel(); return true; }
+        if (keyData == Keys.Escape)
+        {
+            var cancelled = false;
+            if (_operationCts is { IsCancellationRequested: false }) { _operationCts.Cancel(); cancelled = true; }
+            if (_gpsSearchCts is { IsCancellationRequested: false }) { _gpsSearchCts.Cancel(); cancelled = true; }
+            if (cancelled) return true;
+        }
+        if (_isBusy) return base.ProcessCmdKey(ref message, keyData);
         if (keyData == (Keys.Control | Keys.A)) { dgv.SelectAll(); return true; }
-        if (keyData == (Keys.Control | Keys.Z)) { if (_history.Undo(_session.Media)) _session.NotifyChanged(); return true; }
-        if (keyData == (Keys.Control | Keys.Y)) { if (_history.Redo(_session.Media)) _session.NotifyChanged(); return true; }
+        if (keyData == (Keys.Control | Keys.Z)) { UndoPendingChanges(); return true; }
+        if (keyData == (Keys.Control | Keys.Y)) { RedoPendingChanges(); return true; }
         return base.ProcessCmdKey(ref message, keyData);
     }
 
@@ -262,6 +396,13 @@ public partial class Form1 : Form
 
     private void WireCommands()
     {
+        _gpsSearchTimer.Tick += async (_, _) =>
+        {
+            _gpsSearchTimer.Stop();
+            await SearchGpsSuggestionsAsync(showNoResultMessage: false);
+        };
+        tGPS.TextUpdate += (_, _) => ScheduleGpsSearch();
+        tGPS.SelectionChangeCommitted += (_, _) => SelectGpsSuggestion();
         Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         openFilesMenuItem.Click += button2_Click;
@@ -365,14 +506,46 @@ public partial class Form1 : Form
 
     private void StageGpsFromFields()
     {
-        if (!TryCoordinate(tLat.Text, out var latitude) || !TryCoordinate(tLon.Text, out var longitude) || !TryOptionalCoordinate(tAlt.Text, out var altitude) || !IsValidCoordinate(latitude, longitude, altitude))
+        if (!TryGpsFromFields(allowEmpty: false, out var location) || location is null) return;
+        StageGps(location);
+    }
+
+    private bool TryGpsFromFields(bool allowEmpty, out GpsCoordinate? location)
+    {
+        location = null;
+        var latitudeText = tLat.Text.Trim();
+        var longitudeText = tLon.Text.Trim();
+        var altitudeText = tAlt.Text.Trim();
+        if (latitudeText.Length == 0 && longitudeText.Length == 0 && altitudeText.Length == 0)
         {
-            MessageBox.Show("Latitude, longitude or altitude invalid.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
+            if (allowEmpty) return true;
+            MessageBox.Show("Saisissez une latitude et une longitude.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
         }
+
+        if (!TryCoordinate(latitudeText, out var latitude) || !TryCoordinate(longitudeText, out var longitude) ||
+            !TryOptionalCoordinate(altitudeText, out var altitude) || !IsValidCoordinate(latitude, longitude, altitude))
+        {
+            MessageBox.Show("Latitude, longitude ou altitude invalide.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+
+        location = new GpsCoordinate(latitude, longitude, altitude);
+        return true;
+    }
+
+    private bool StageGps(GpsCoordinate location)
+    {
         var selected = SelectedItems;
-        _sessionController.SetLocation(selected, latitude, longitude, altitude, _locations);
+        if (selected.Count == 0)
+        {
+            MessageBox.Show("Le lieu est sélectionné, mais aucune image ne l’est. Sélectionnez une ou plusieurs images puis choisissez à nouveau le lieu.", "GPS non préparé", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
+        }
+        _sessionController.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude, _locations);
         RefreshMapMarkers();
+        operationStatus.Text = $"GPS préparé pour {selected.Count} fichier(s).";
+        return true;
     }
 
     private void ToggleMap()
@@ -418,7 +591,12 @@ public partial class Form1 : Form
     {
         var active = SelectedItems.FirstOrDefault();
         if (active is null) return;
-        try { _gpsClipboard = LocationEditorService.CopyLocation(active); }
+        try
+        {
+            _gpsClipboard = LocationEditorService.CopyLocation(active);
+            operationStatus.Text = "Coordonnées GPS copiées.";
+            UpdateCommandState();
+        }
         catch (Exception ex) { MessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
 
@@ -437,7 +615,11 @@ public partial class Form1 : Form
         var active = SelectedItems.FirstOrDefault();
         var latitudeText = active?.EffectiveLatitude?.ToString(CultureInfo.InvariantCulture) ?? tLat.Text;
         var longitudeText = active?.EffectiveLongitude?.ToString(CultureInfo.InvariantCulture) ?? tLon.Text;
-        if (!TryCoordinate(latitudeText, out var latitude) || !TryCoordinate(longitudeText, out var longitude)) return;
+        if (!TryCoordinate(latitudeText, out var latitude) || !TryCoordinate(longitudeText, out var longitude))
+        {
+            MessageBox.Show("Aucune coordonnée GPS valide à identifier.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         try
         {
             SetBusy(true);
@@ -495,6 +677,11 @@ public partial class Form1 : Form
             report.ShowDialog(this);
         }
         catch (OperationCanceledException) { AppLogger.Info("Restore cancelled."); }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Restore failed.", ex);
+            MessageBox.Show(ex.Message, "Restore error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
         finally { SetBusy(false); }
     }
 
@@ -542,6 +729,9 @@ public partial class Form1 : Form
     {
         if (applyMenuItem is null) return;
         var pending = _session.PendingChangeCount;
+        var hasMedia = _session.Media.Count > 0;
+        var hasSelection = SelectedItems.Count > 0;
+        var canEditSelection = !_isBusy && hasSelection;
         var applyText = $"Vérifier et appliquer tout ({pending})";
         applyCommand.Text = applyText;
         applyMenuItem.Text = applyText;
@@ -550,6 +740,23 @@ public partial class Form1 : Form
         undoCommand.Enabled = undoMenuItem.Enabled = !_isBusy && _history.CanUndo;
         redoCommand.Enabled = redoMenuItem.Enabled = !_isBusy && _history.CanRedo;
         cancelCommand.Enabled = cancelMenuItem.Enabled = _isBusy;
+
+        bChange.Enabled = canEditSelection;
+        dateEditorCommand.Enabled = dateQuickCommand.Enabled = canEditSelection;
+        resetSelectedCommand.Enabled = canEditSelection;
+        resetAllCommand.Enabled = !_isBusy && pending > 0;
+        minusHourCommand.Enabled = plusHourCommand.Enabled = canEditSelection;
+        minusMinuteCommand.Enabled = plusMinuteCommand.Enabled = canEditSelection;
+        setGpsCommand.Enabled = setGpsQuickItem.Enabled = canEditSelection;
+        copyGpsCommand.Enabled = copyGpsQuickItem.Enabled = canEditSelection;
+        pasteGpsCommand.Enabled = pasteGpsQuickItem.Enabled = canEditSelection && _gpsClipboard is not null;
+        removeGpsCommand.Enabled = removeGpsQuickItem.Enabled = canEditSelection;
+        restoreBackupCommand.Enabled = removeFromSessionMenuItem.Enabled = canEditSelection;
+        selectAllMenuItem.Enabled = !_isBusy && hasMedia;
+
+        var canSearchGps = !_isBusy && !_gpsSearchInProgress && tGPS.Text.Trim().Length >= 2;
+        bGPS.Enabled = findGpsMenuItem.Enabled = findGpsQuickItem.Enabled = canSearchGps;
+        reverseGpsCommand.Enabled = reverseGpsQuickItem.Enabled = !_isBusy;
         operationStatus.Enabled = true;
     }
 
@@ -627,6 +834,10 @@ public partial class Form1 : Form
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
         _operationCts?.Dispose();
+        _gpsSearchTimer.Stop();
+        _gpsSearchTimer.Dispose();
+        _gpsSearchCts?.Cancel();
+        _gpsSearchCts?.Dispose();
         foreach (var image in _gridThumbnails.Values) image.Dispose();
         _gridThumbnails.Clear();
         picBox.Image?.Dispose();
@@ -646,6 +857,11 @@ public partial class Form1 : Form
     private void SetBusy(bool busy)
     {
         _isBusy = busy;
+        if (busy)
+        {
+            _gpsSearchTimer.Stop();
+            _gpsSearchCts?.Cancel();
+        }
         main.Enabled = !busy;
         foreach (ToolStripItem item in commands.Items) item.Enabled = !busy;
         foreach (ToolStripItem item in navigationMenu.Items) item.Enabled = !busy;

@@ -47,7 +47,7 @@ namespace ExifTweaker
             tAlt = new TextBox();
             label1 = new Label();
             label4 = new Label();
-            tGPS = new TextBox();
+            tGPS = new ComboBox();
             tName = new TextBox();
             splitContainer1 = new SplitContainer();
             dgv = new DataGridView();
@@ -321,10 +321,11 @@ namespace ExifTweaker
             tGPS.Dock = DockStyle.Fill;
             tGPS.Location = new Point(97, 33);
             tGPS.Margin = new Padding(4, 3, 4, 3);
+            tGPS.DropDownStyle = ComboBoxStyle.DropDown;
+            tGPS.FormattingEnabled = true;
             tGPS.Name = "tGPS";
             tGPS.Size = new Size(522, 23);
             tGPS.TabIndex = 5;
-            tGPS.Text = "Paris";
             // 
             // tName
             // 
@@ -738,7 +739,7 @@ namespace ExifTweaker
         private System.Windows.Forms.TextBox tLon;
         private System.Windows.Forms.TextBox tAlt;
         private System.Windows.Forms.DateTimePicker dateTimePicker1;
-        private System.Windows.Forms.TextBox tGPS;
+        private System.Windows.Forms.ComboBox tGPS;
         private System.Windows.Forms.TextBox tName;
         private System.Windows.Forms.DataGridView dgv;
         private System.Windows.Forms.DataGridViewCheckBoxColumn selectedColumn;

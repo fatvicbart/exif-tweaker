@@ -18,6 +18,33 @@ public sealed class SessionController
         EditDate(items, new DateEditRequest { Mode = DateEditMode.Set, Date = date });
     }
 
+    public void StageVisibleValues(
+        IEnumerable<PhotoItem> items,
+        DateTime date,
+        GpsCoordinate? location,
+        LocationEditorService locations)
+    {
+        var selected = items.ToList();
+        if (selected.Count == 0) return;
+        if (location is not null)
+            LocationEditorService.Validate(location.Latitude, location.Longitude, location.Altitude);
+
+        History.Capture(selected);
+        foreach (var item in selected)
+        {
+            item.PendingChanges.CaptureDate = date;
+            item.PendingChanges.DateShift = null;
+            item.PendingChanges.DateShiftYears = 0;
+            item.PendingChanges.DateShiftMonths = 0;
+            item.NotifyChanged();
+        }
+
+        if (location is not null)
+            locations.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude);
+
+        Session.NotifyChanged();
+    }
+
     public void ShiftDate(IEnumerable<PhotoItem> items, TimeSpan shift)
     {
         EditDate(items, new DateEditRequest
@@ -33,6 +60,7 @@ public sealed class SessionController
     public void EditDate(IEnumerable<PhotoItem> items, DateEditRequest request)
     {
         var selected = items.ToList();
+        if (selected.Count == 0) return;
         History.Capture(selected);
         foreach (var item in selected)
         {
@@ -65,6 +93,7 @@ public sealed class SessionController
     public void SetLocation(IEnumerable<PhotoItem> items, double latitude, double longitude, double? altitude, LocationEditorService locations)
     {
         var selected = items.ToList();
+        if (selected.Count == 0) return;
         History.Capture(selected);
         locations.SetLocation(selected, latitude, longitude, altitude);
         Session.NotifyChanged();
@@ -73,6 +102,7 @@ public sealed class SessionController
     public void RemoveLocation(IEnumerable<PhotoItem> items, LocationEditorService locations)
     {
         var selected = items.ToList();
+        if (selected.Count == 0) return;
         History.Capture(selected);
         locations.RemoveLocation(selected);
         Session.NotifyChanged();
@@ -81,6 +111,7 @@ public sealed class SessionController
     public void Reset(IEnumerable<PhotoItem> items)
     {
         var selected = items.ToList();
+        if (selected.Count == 0) return;
         History.Capture(selected);
         foreach (var item in selected) { item.PendingChanges.Clear(); item.NotifyChanged(); }
         Session.NotifyChanged();
