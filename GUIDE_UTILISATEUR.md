@@ -26,8 +26,8 @@ ExifTweaker ne sert pas à modifier les pixels d’une image ni à monter une vi
 
 ExifTweaker fonctionne en deux temps.
 
-1. Une action comme **STAGE**, **Set GPS** ou **Date editor** prépare une modification en mémoire.
-2. Le bouton **Apply** écrit ensuite toutes les modifications en attente dans les fichiers.
+1. Une action comme **PRÉPARER DATE**, **Préparer le GPS saisi** ou **Date et heure** prépare une modification en mémoire.
+2. Le bouton **Vérifier et appliquer tout (N)** ouvre le contrôle final puis écrit toutes les modifications en attente dans les fichiers.
 
 ```mermaid
 flowchart LR
@@ -41,9 +41,9 @@ flowchart LR
     G --> H[Rapport final]
 ```
 
-> Tant que **Apply** n’a pas été confirmé, les métadonnées du fichier sur le disque ne sont pas modifiées.
+> Tant que le bouton **Apply** de l’aperçu final n’a pas été confirmé, les métadonnées du fichier sur le disque ne sont pas modifiées.
 
-Les commandes **Undo**, **Redo**, **Reset selected** et **Reset all** agissent sur les changements préparés. Elles ne permettent pas d’annuler une écriture déjà appliquée. Après une écriture, utiliser **Restore backup** si une sauvegarde existe.
+Les commandes **Annuler**, **Rétablir**, **Réinitialiser la sélection** et **Réinitialiser toutes les modifications** agissent sur les changements préparés. Elles ne permettent pas d’annuler une écriture déjà appliquée. Après une écriture, utiliser **Restaurer une sauvegarde…** si une sauvegarde existe.
 
 ---
 
@@ -100,28 +100,101 @@ Si Windows SmartScreen affiche un avertissement, vérifier que l’archive provi
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│ Apply | Open folder | Date editor | Settings | Cancel | Undo | Redo | ...  │
+│ Fichier | Édition | Date et heure | Localisation | Affichage | Actions | Aide│
+├──────────────────────────────────────────────────────────────────────────────┤
+│ Ouvrir ▼ | Date et heure | Localisation ▼ | Carte | Annuler | Rétablir     │
+│ Filtre : Tous (24/24) ▼                 Vérifier et appliquer tout (3)      │
 ├───────────────────────────────────────────┬──────────────────────────────────┤
 │ Liste des médias                          │ Aperçu du média                  │
 │ ✓ Preview FileName Date Timezone ...      │ ou carte avec les marqueurs      │
 │ [ ] [img] photo01.jpg ...                 │                                  │
 │ [ ] [img] video01.mp4 ...                 │                                  │
-├────────────┬─────────────────────────────────────────────────────────────────┤
-│ OPEN...    │ Date/heure | Lat | Lon | Alt | Typ                             │
-│ FIND GPS   │ Recherche de lieu                                               │
-│ STAGE      │ Nom ou description du lieu                                      │
-├────────────┴─────────────────────────────────────────────────────────────────┤
+├────────────────┬─────────────────────────────────────────────────────────────┤
+│ FICHIERS…      │ Date/heure | Lat | Lon | Alt | Typ                         │
+│ RECHERCHER     │ Recherche de lieu                                           │
+│ PRÉPARER DATE  │ Nom ou description du lieu                                  │
+├────────────────┴─────────────────────────────────────────────────────────────┤
 │ Barre de progression                                  Ready / Working…       │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-La fenêtre est composée de cinq zones :
+La fenêtre est composée de six zones :
 
-1. la barre de commandes en haut ;
-2. la liste des médias à gauche ;
-3. l’aperçu ou la carte à droite ;
-4. les champs rapides de date et GPS en bas ;
-5. la progression et l’état de l’opération.
+1. le menu principal regroupant toutes les fonctions ;
+2. la barre d’accès rapide pour les actions fréquentes ;
+3. la liste des médias à gauche ;
+4. l’aperçu ou la carte à droite ;
+5. les champs rapides de date et GPS en bas ;
+6. la progression et l’état de l’opération.
+
+### Menu principal complet
+
+```text
+Fichier
+├── Ouvrir des fichiers…                 Ctrl+O
+├── Ouvrir un dossier…
+├── Retirer de la session                Suppr lorsque le tableau est actif
+├── Restaurer une sauvegarde…
+├── Paramètres…
+└── Quitter                              Alt+F4
+
+Édition
+├── Annuler                              Ctrl+Z
+├── Rétablir                             Ctrl+Y
+├── Réinitialiser la sélection
+├── Réinitialiser toutes les modifications
+└── Tout sélectionner                    Ctrl+A
+
+Date et heure
+├── Ouvrir l’éditeur complet…
+├── Reculer d’une heure
+├── Avancer d’une heure
+├── Reculer d’une minute
+└── Avancer d’une minute
+
+Localisation
+├── Rechercher un lieu…
+├── Préparer le GPS saisi
+├── Copier le GPS
+├── Coller le GPS
+├── Préparer la suppression du GPS
+└── Identifier les coordonnées
+
+Affichage
+├── Afficher l’aperçu
+├── Afficher la carte
+└── Filtrer
+    ├── Tous
+    ├── Modifiés
+    ├── Sans GPS
+    ├── Sans date
+    └── Erreurs
+
+Actions
+├── Vérifier et appliquer tout (N)
+└── Annuler l’opération
+
+Aide
+├── Guide utilisateur                    F1
+├── Ouvrir le dossier des journaux
+├── Vérifier ExifTool
+└── À propos d’ExifTweaker
+```
+
+### Barre d’accès rapide
+
+| Commande | Rôle |
+|---|---|
+| `Ouvrir ▼` | Ouvrir des fichiers ou un dossier |
+| `Date et heure` | Ouvrir l’éditeur complet pour la sélection |
+| `Localisation ▼` | Accéder aux recherches et actions GPS |
+| `Carte` | Basculer entre aperçu et carte |
+| `Annuler` / `Rétablir` | Parcourir l’historique des changements préparés |
+| `Filtre : Tous (X/Y) ▼` | Choisir un filtre et voir le nombre affiché sur le total |
+| `Vérifier et appliquer tout (N)` | Contrôler puis écrire les N médias modifiés de toute la session |
+| `Annuler l’opération` | Interrompre une opération longue ; actif uniquement pendant celle-ci |
+
+> Le mot « tout » est important : l’application traite tous les changements en attente de la session, pas uniquement la sélection ou les lignes visibles.
 
 Le titre de la fenêtre résume la session :
 
@@ -165,16 +238,16 @@ Un clic sur une ligne actualise également les champs Date, Latitude, Longitude,
 
 ## 7. Importer des médias
 
-### Méthode A — bouton `OPEN...`
+### Méthode A — menu `Fichier`, bouton `Ouvrir ▼` ou bouton inférieur `FICHIERS…`
 
-1. Cliquer sur **OPEN...**.
+1. Choisir **Fichier → Ouvrir des fichiers…**, **Ouvrir ▼ → Ouvrir des fichiers…** ou cliquer sur **FICHIERS…**.
 2. Sélectionner un ou plusieurs fichiers.
 3. Cliquer sur **Ouvrir**.
 4. Attendre la fin de la lecture ExifTool.
 
-### Méthode B — commande `Open folder`
+### Méthode B — commande `Ouvrir un dossier…`
 
-1. Cliquer sur **Open folder** dans la barre supérieure.
+1. Choisir **Fichier → Ouvrir un dossier…** ou **Ouvrir ▼ → Ouvrir un dossier…**.
 2. Choisir le dossier.
 3. Valider.
 4. Si **Recursive folder import** est activé, les sous-dossiers sont également parcourus.
@@ -233,7 +306,7 @@ Un format reconnu peut néanmoins refuser certaines écritures selon sa structur
 | État | Signification |
 |---|---|
 | `Unchanged` | Fichier lu, aucune modification préparée |
-| `Modified` | Au moins une modification attend **Apply** |
+| `Modified` | Au moins une modification attend **Vérifier et appliquer tout (N)** |
 | `Metadata issue` | Aucune date de capture n’a été trouvée |
 | `Error` | Une lecture, écriture ou restauration a échoué |
 
@@ -266,18 +339,18 @@ Procédure :
 
 1. sélectionner un ou plusieurs médias ;
 2. régler la date et l’heure ;
-3. cliquer sur **STAGE** ;
+3. cliquer sur **PRÉPARER DATE** ;
 4. vérifier que les lignes passent à `Modified` ;
 5. contrôler la colonne `Date` ;
-6. utiliser **Apply** seulement lorsque tout est correct.
+6. utiliser **Vérifier et appliquer tout (N)** seulement lorsque tout est correct.
 
-**STAGE ne modifie que la date et l’heure.** Il n’applique pas les champs Latitude, Longitude ou Altitude.
+**PRÉPARER DATE ne modifie que la date et l’heure.** Il n’applique pas les champs Latitude, Longitude ou Altitude.
 
 ---
 
 ## 12. Écran `Batch date and timezone editor`
 
-Ouvrir cet écran avec **Date editor** après avoir sélectionné au moins un média.
+Ouvrir cet écran avec **Date et heure** dans la barre rapide ou **Date et heure → Ouvrir l’éditeur complet…** après avoir sélectionné au moins un média.
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────┐
@@ -333,16 +406,16 @@ Cliquer sur **Apply to selection** prépare les changements. Cela n’écrit pas
 
 ## 13. Décalages rapides
 
-La barre supérieure contient :
+Le menu **Date et heure** contient :
 
-- **-1 hour** ;
-- **+1 hour** ;
-- **-1 minute** ;
-- **+1 minute**.
+- **Reculer d’une heure** ;
+- **Avancer d’une heure** ;
+- **Reculer d’une minute** ;
+- **Avancer d’une minute**.
 
 Ces commandes décalent immédiatement, dans la session, la date des médias sélectionnés. Elles peuvent être utilisées plusieurs fois et leurs effets s’additionnent.
 
-Exemple : deux clics sur **-1 hour** et un clic sur **+1 minute** donnent un décalage total de `-1 h 59 min`.
+Exemple : deux clics sur **Reculer d’une heure** et un clic sur **Avancer d’une minute** donnent un décalage total de `-1 h 59 min`.
 
 ---
 
@@ -362,9 +435,9 @@ Procédure :
 1. sélectionner les médias ;
 2. saisir latitude et longitude ;
 3. saisir l’altitude ou laisser le champ vide ;
-4. cliquer sur **Set GPS** dans la barre supérieure ;
+4. choisir **Localisation → Préparer le GPS saisi** ou la même commande dans `Localisation ▼` ;
 5. vérifier `Modified`, `Location`, `Latitude`, `Longitude` et `Altitude` ;
-6. appliquer ultérieurement avec **Apply**.
+6. appliquer ultérieurement avec **Vérifier et appliquer tout (N)**.
 
 Exemple pour Paris :
 
@@ -378,18 +451,18 @@ Si l’altitude est laissée vide, ExifTweaker prépare la suppression d’une �
 
 ---
 
-## 15. Rechercher un lieu avec `FIND GPS`
+## 15. Rechercher un lieu avec `RECHERCHER`
 
 Cette fonction nécessite Internet.
 
 1. Saisir un lieu dans le grand champ de recherche, par exemple `Tour Eiffel, Paris`.
-2. Cliquer sur **FIND GPS**.
+2. Cliquer sur **RECHERCHER**.
 3. Attendre la fenêtre **Select location**.
 4. Cliquer sur le résultat correct.
 5. Cliquer sur **Use location**.
 6. Vérifier les coordonnées remplies.
 7. Sélectionner les médias concernés.
-8. Cliquer sur **Set GPS** pour préparer réellement ces coordonnées.
+8. Cliquer sur **Préparer le GPS saisi** pour préparer réellement ces coordonnées.
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
@@ -403,7 +476,7 @@ Cette fonction nécessite Internet.
 └───────────────────────────────────────────────────────────────┘
 ```
 
-> **FIND GPS remplit les champs mais ne prépare pas à lui seul la modification.** L’étape **Set GPS** est indispensable.
+> **RECHERCHER remplit les champs mais ne prépare pas à lui seul la modification.** L’étape **Préparer le GPS saisi** est indispensable.
 
 Le nom et le type affichés après la recherche sont informatifs. La version actuelle écrit les coordonnées GPS et l’altitude, mais ne prépare pas l’écriture des champs `City`, `Country`, nom ou type.
 
@@ -411,7 +484,7 @@ Le nom et le type affichés après la recherche sont informatifs. La version act
 
 ## 16. Utiliser la carte
 
-Cliquer sur **Map** pour remplacer l’aperçu par une carte.
+Cliquer sur **Carte** pour remplacer l’aperçu par une carte.
 
 La carte :
 
@@ -426,44 +499,44 @@ La carte :
 
 1. sélectionner un ou plusieurs médias ;
 2. saisir éventuellement une altitude dans `Alt` ;
-3. afficher **Map** ;
+3. afficher **Carte** ;
 4. cliquer sur la position souhaitée ;
 5. les coordonnées sont immédiatement préparées pour la sélection ;
 6. vérifier les valeurs et le statut `Modified`.
 
-Contrairement à **FIND GPS**, un clic sur la carte prépare directement la position. Si aucun média n’est sélectionné, le clic ne modifie rien.
+Contrairement à **RECHERCHER**, un clic sur la carte prépare directement la position. Si aucun média n’est sélectionné, le clic ne modifie rien.
 
-Cliquer de nouveau sur **Map** pour revenir à l’aperçu du média.
+Cliquer de nouveau sur **Carte** pour revenir à l’aperçu du média.
 
 ---
 
 ## 17. Copier, coller, supprimer et identifier une position
 
-### `Copy GPS`
+### `Copier le GPS`
 
 Copie latitude, longitude et altitude du premier média sélectionné dans le presse-papiers GPS interne d’ExifTweaker.
 
 Le presse-papiers GPS n’est pas le presse-papiers texte de Windows et disparaît à la fermeture de l’application.
 
-### `Paste GPS`
+### `Coller le GPS`
 
 Prépare les coordonnées copiées sur tous les médias sélectionnés.
 
 Procédure conseillée :
 
 1. sélectionner uniquement le média source ;
-2. cliquer sur **Copy GPS** ;
+2. cliquer sur **Copier le GPS** ;
 3. sélectionner les médias cibles ;
-4. cliquer sur **Paste GPS** ;
+4. cliquer sur **Coller le GPS** ;
 5. contrôler puis appliquer.
 
-### `Remove GPS`
+### `Préparer la suppression du GPS`
 
 Prépare la suppression de la latitude, longitude et altitude des médias sélectionnés.
 
-Cette suppression n’est écrite qu’après **Apply**.
+Cette suppression n’est écrite qu’après **Vérifier et appliquer tout (N)** puis confirmation de l’aperçu.
 
-### `Reverse GPS`
+### `Identifier les coordonnées`
 
 Effectue un géocodage inverse des coordonnées du premier média sélectionné, ou des coordonnées présentes dans les champs si aucun média actif ne fournit de GPS.
 
@@ -475,14 +548,14 @@ Le résultat remplit les champs de description et de recherche. Il est informati
 
 | Commande | Raccourci | Effet |
 |---|---|---|
-| **Undo** | `Ctrl+Z` | Annule la dernière opération préparée |
-| **Redo** | `Ctrl+Y` | Rétablit la dernière opération annulée |
-| **Reset selected** | aucun | Efface tous les changements préparés des médias sélectionnés |
-| **Reset all** | aucun | Efface tous les changements préparés de toute la session |
+| **Annuler** | `Ctrl+Z` | Annule la dernière opération préparée |
+| **Rétablir** | `Ctrl+Y` | Rétablit la dernière opération annulée |
+| **Réinitialiser la sélection** | aucun | Efface tous les changements préparés des médias sélectionnés |
+| **Réinitialiser toutes les modifications** | aucun | Efface tous les changements préparés de toute la session |
 
 Chaque action en lot est mémorisée comme une étape d’historique.
 
-Ces commandes ne restaurent pas un fichier après **Apply**. Une fois une écriture réussie, l’historique correspondant est retiré.
+Ces commandes ne restaurent pas un fichier après une écriture réussie. L’historique correspondant est alors retiré.
 
 ---
 
@@ -490,15 +563,15 @@ Ces commandes ne restaurent pas un fichier après **Apply**. Une fois une écrit
 
 | Filtre | Médias affichés |
 |---|---|
-| **All** | Toute la session |
-| **Modified** | Médias ayant des changements en attente |
-| **No GPS** | Médias sans latitude ou sans longitude effective |
-| **No date** | Médias sans date de capture effective |
-| **Errors** | Médias dont la dernière opération a produit une erreur |
+| **Tous** | Toute la session |
+| **Modifiés** | Médias ayant des changements en attente |
+| **Sans GPS** | Médias sans latitude ou sans longitude effective |
+| **Sans date** | Médias sans date de capture effective |
+| **Erreurs** | Médias dont la dernière opération a produit une erreur |
 
 Les filtres modifient uniquement l’affichage.
 
-> **Apply agit sur tous les médias modifiés de la session, y compris ceux masqués par le filtre courant.** Utiliser **Modified** avant l’application pour inspecter la totalité des changements en attente.
+> **Vérifier et appliquer tout (N)** agit sur tous les médias modifiés de la session, y compris ceux masqués par le filtre courant. Utiliser **Modifiés** avant l’application pour inspecter la totalité des changements en attente.
 
 `Ctrl+A` sélectionne les lignes visibles, pas nécessairement tous les médias masqués par un filtre.
 
@@ -517,13 +590,13 @@ Attention : retirer un média abandonne ses changements préparés dans la sessi
 
 ## 21. Appliquer les modifications
 
-Avant **Apply** :
+Avant **Vérifier et appliquer tout (N)** :
 
-1. choisir le filtre **Modified** ;
+1. choisir le filtre **Modifiés** ;
 2. contrôler chaque date, fuseau et position ;
-3. revenir sur **All** si nécessaire ;
+3. revenir sur **Tous** si nécessaire ;
 4. vérifier le nombre `pending` dans le titre ;
-5. cliquer sur **Apply**.
+5. cliquer sur **Vérifier et appliquer tout (N)**.
 
 ### Écran `Apply preview`
 
@@ -556,7 +629,7 @@ Le tableau compare les dates et positions originales aux valeurs effectives.
 
 - l’interface est désactivée ;
 - la progression avance ;
-- **Cancel** ou `Échap` demande l’arrêt ;
+- **Annuler l’opération** ou `Échap` demande l’arrêt ;
 - plusieurs fichiers peuvent être traités en parallèle ;
 - chaque fichier écrit est relu pour vérifier les métadonnées critiques.
 
@@ -609,7 +682,7 @@ Si la sauvegarde existe déjà, les écritures suivantes conservent cette premi�
 ### Restaurer
 
 1. sélectionner les médias à restaurer ;
-2. cliquer sur **Restore backup** ;
+2. choisir **Fichier → Restaurer une sauvegarde…** ;
 3. confirmer **Yes** dans l’avertissement ;
 4. attendre le **Restore report** ;
 5. vérifier `Succeeded` et `Failed`.
@@ -651,7 +724,7 @@ Ouvrir avec **Settings**.
 
 | Paramètre | Valeur par défaut | Effet |
 |---|---|---|
-| `Geocoding provider` | `Maps.co` | Service utilisé par **FIND GPS** et **Reverse GPS** |
+| `Geocoding provider` | `Maps.co` | Service utilisé par **RECHERCHER** et **Identifier les coordonnées** |
 | `Maps.co API key` | vide | Clé nécessaire avec Maps.co ; masquée à l’écran |
 | `ExifTool executable` | vide | Chemin personnalisé vers `exiftool.exe` ; sinon version embarquée |
 | `Backup strategy` | conservation de `_original` | Choisit si une sauvegarde est créée |
@@ -735,8 +808,8 @@ Les sauvegardes médias `_original` sont créées à côté des médias, pas dan
 
 Les fonctions locales de lecture et d’écriture utilisent les fichiers présents sur l’ordinateur. En revanche :
 
-- **FIND GPS** envoie le texte recherché au fournisseur de géocodage ;
-- **Reverse GPS** envoie latitude et longitude au fournisseur ;
+- **RECHERCHER** envoie le texte recherché au fournisseur de géocodage ;
+- **Identifier les coordonnées** envoie latitude et longitude au fournisseur ;
 - la carte contacte le CDN Leaflet et le serveur de tuiles configuré ;
 - les journaux locaux peuvent contenir les chemins complets des fichiers en erreur.
 
@@ -759,8 +832,19 @@ Ne pas utiliser les fonctions réseau avec des recherches ou coordonnées sensib
 | `Ready` | Aucune opération longue en cours |
 | `Working… (Esc to cancel)` | Import, géocodage, écriture ou restauration en cours |
 
-Le bouton **Cancel** n’est actif que pendant une opération.
+Le bouton **Annuler l’opération** n’est actif que pendant une opération.
 
+
+### Menu `Aide`
+
+| Commande | Effet |
+|---|---|
+| `Guide utilisateur` | Ouvre ce manuel sur GitHub dans le navigateur ; raccourci `F1` |
+| `Ouvrir le dossier des journaux` | Crée si nécessaire puis ouvre `%LOCALAPPDATA%\ExifTweaker\logs` |
+| `Vérifier ExifTool` | Exécute ExifTool, affiche sa version et le chemin réellement utilisé |
+| `À propos d’ExifTweaker` | Affiche la version de l’application et son rôle |
+
+La vérification ExifTool utilise l’état `Working…` et peut être interrompue avec **Annuler l’opération** ou `Échap`.
 ---
 
 ## 27. Processus conseillé pour corriger un lot
@@ -786,38 +870,38 @@ flowchart TD
 
 1. importer les photos ;
 2. sélectionner le lot concerné ;
-3. cliquer sur **+1 hour** ;
-4. afficher **Modified** ;
+3. cliquer sur **Avancer d’une heure** ;
+4. afficher **Modifiés** ;
 5. vérifier la première et la dernière date ;
-6. cliquer sur **Apply** ;
+6. cliquer sur **Vérifier et appliquer tout (N)** ;
 7. relire l’aperçu ;
 8. confirmer ;
 9. vérifier que tous les fichiers sont `Succeeded`.
 
 ### Exemple : géolocaliser plusieurs photos au même endroit
 
-1. rechercher le lieu avec **FIND GPS** ;
+1. rechercher le lieu avec **RECHERCHER** ;
 2. choisir le bon résultat ;
 3. sélectionner les photos ;
-4. cliquer sur **Set GPS** ;
+4. cliquer sur **Préparer le GPS saisi** ;
 5. afficher la carte pour contrôler ;
-6. utiliser **Modified** ;
+6. utiliser **Modifiés** ;
 7. appliquer et vérifier le rapport.
 
 ### Exemple : copier la position d’une photo
 
 1. sélectionner seulement la photo source ;
-2. **Copy GPS** ;
+2. **Copier le GPS** ;
 3. sélectionner toutes les photos cibles ;
-4. **Paste GPS** ;
-5. contrôler puis **Apply**.
+4. **Coller le GPS** ;
+5. contrôler puis **Vérifier et appliquer tout (N)**.
 
 ### Exemple : supprimer les positions avant partage
 
 1. importer les copies destinées au partage ;
 2. sélectionner les médias ;
-3. **Remove GPS** ;
-4. utiliser le filtre **Modified** ;
+3. **Préparer la suppression du GPS** ;
+4. utiliser le filtre **Modifiés** ;
 5. vérifier que les colonnes GPS sont vides ;
 6. appliquer ;
 7. vérifier le rapport et relire les fichiers.
@@ -866,7 +950,7 @@ Les métadonnées déjà appliquées restent évidemment sur disque.
 - vérifier qu’un pare-feu n’empêche pas `unpkg.com` ou le serveur de tuiles ;
 - la lecture et l’écriture des métadonnées restent utilisables sans carte.
 
-### `FIND GPS` indique qu’aucune clé Maps.co n’est configurée
+### `RECHERCHER` indique qu’aucune clé Maps.co n’est configurée
 
 - ouvrir **Settings** ;
 - saisir la clé Maps.co, ou choisir `Nominatim` ;
@@ -887,11 +971,11 @@ Ce n’est pas forcément une erreur de métadonnées. Certains RAW ou vidéos n
 
 ### `Apply` ne fait rien
 
-Il n’existe probablement aucun changement en attente. Vérifier le nombre `pending` et le filtre **Modified**.
+Il n’existe probablement aucun changement en attente. Vérifier le nombre `pending` et le filtre **Modifiés**.
 
 ### Certains fichiers ont été modifiés alors qu’ils étaient masqués
 
-C’est le fonctionnement actuel : **Apply** traite tous les changements en attente de la session. Un filtre ne réduit pas la portée de l’écriture.
+C’est le fonctionnement actuel : **Vérifier et appliquer tout (N)** traite tous les changements en attente de la session. Un filtre ne réduit pas la portée de l’écriture.
 
 ### Une écriture échoue
 
@@ -906,7 +990,7 @@ Vérifier :
 
 Tester ensuite sur une copie. Ne pas supprimer la sauvegarde `_original` tant que le résultat n’est pas validé.
 
-### `Restore backup` échoue
+### `Restaurer une sauvegarde…` échoue
 
 Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier qu’il se trouve exactement à côté du média.
 
@@ -924,9 +1008,9 @@ Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier
 
 - L’interface est principalement en anglais.
 - La session et les changements non appliqués ne sont pas sauvegardés à la fermeture.
-- **Apply** s’applique à toute la session modifiée, pas uniquement à la sélection.
-- Les filtres ne limitent pas la portée de **Apply**.
-- La recherche de lieu remplit les coordonnées mais nécessite ensuite **Set GPS**.
+- **Vérifier et appliquer tout (N)** s’applique à toute la session modifiée, pas uniquement à la sélection.
+- Les filtres ne limitent pas la portée de **Vérifier et appliquer tout (N)**.
+- La recherche de lieu remplit les coordonnées mais nécessite ensuite **Préparer le GPS saisi**.
 - Le clic sur la carte, lui, prépare directement le GPS pour la sélection.
 - Le nom du lieu, le type, la ville et le pays ne sont pas actuellement préparés à l’écriture.
 - L’aperçu vidéo n’est pas un lecteur.
@@ -948,8 +1032,8 @@ Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier
 ### Pendant
 
 - [ ] J’ai vérifié exactement quels médias sont sélectionnés.
-- [ ] J’ai compris que `STAGE` concerne la date.
-- [ ] Après `FIND GPS`, j’ai utilisé `Set GPS`.
+- [ ] J’ai compris que `PRÉPARER DATE` concerne uniquement la date.
+- [ ] Après `RECHERCHER`, j’ai utilisé `Préparer le GPS saisi`.
 - [ ] J’ai contrôlé le filtre `Modified`.
 - [ ] Le nombre `pending` correspond à mon intention.
 

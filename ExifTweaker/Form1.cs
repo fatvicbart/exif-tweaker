@@ -28,6 +28,8 @@ public partial class Form1 : Form
     private readonly FileDiscoveryService _discovery = new();
     private readonly MetadataService _metadata;
     private readonly IGeocodingService _geocoding;
+    private bool _isBusy;
+    private string _activeFilterName = "Tous";
     private GpsCoordinate? _gpsClipboard;
     private CancellationTokenSource? _operationCts;
 
@@ -47,10 +49,14 @@ public partial class Form1 : Form
         _geocoding = new GeocodingService(_settings);
         _sessionController = new SessionController(_session, _history);
         InitializeComponent();
+        InitializeNavigation();
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
-        bChange.Text = "STAGE";
+        bChange.Text = "PRÉPARER DATE";
+        bOpen.Text = "FICHIERS…";
+        bGPS.Text = "RECHERCHER";
         WireCommands();
+        UpdateMapChecks();
         _map.BringToFront();
         _map.MapLocationChanged += (_, point) => SetLocationFromMap(point.Latitude, point.Longitude);
         Shown += async (_, _) =>
@@ -70,7 +76,7 @@ public partial class Form1 : Form
         _sessionController.StageDate(selected, dateTimePicker1.Value);
     }
 
-    private async void button2_Click(object sender, EventArgs e)
+    private async void button2_Click(object? sender, EventArgs e)
     {
         using var dialog = new OpenFileDialog
         {
@@ -158,7 +164,7 @@ public partial class Form1 : Form
         finally { SetBusy(false); }
     }
 
-    private async void bGPS_Click(object sender, EventArgs e)
+    private async void bGPS_Click(object? sender, EventArgs e)
     {
         try
         {
@@ -239,18 +245,38 @@ public partial class Form1 : Form
         return base.ProcessCmdKey(ref message, keyData);
     }
 
-    private ToolStripItem Command(string name) =>
-        commands.Items[name] ?? throw new InvalidOperationException($"Designer command {name} not found.");
+    private ToolStripItem Command(string name)
+    {
+        static ToolStripItem? Find(ToolStripItemCollection items, string target)
+        {
+            foreach (ToolStripItem item in items)
+            {
+                if (item.Name == target) return item;
+                if (item is ToolStripDropDownItem dropDown && Find(dropDown.DropDownItems, target) is { } nested) return nested;
+            }
+            return null;
+        }
+
+        return Find(commands.Items, name) ?? Find(navigationMenu.Items, name) ?? throw new InvalidOperationException($"Command {name} not found.");
+    }
 
     private void WireCommands()
     {
         Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        openFilesMenuItem.Click += button2_Click;
+        openFilesQuickItem.Click += button2_Click;
         Command("openFolderCommand").Click += async (_, _) => await OpenFolderAsync();
+        openFolderQuickItem.Click += async (_, _) => await OpenFolderAsync();
         Command("dateEditorCommand").Click += (_, _) => OpenDateEditor();
+        dateQuickCommand.Click += (_, _) => OpenDateEditor();
         Command("settingsCommand").Click += async (_, _) => await OpenSettingsAsync();
         Command("cancelCommand").Click += (_, _) => _operationCts?.Cancel();
-        Command("undoCommand").Click += (_, _) => { if (_history.Undo(_session.Media)) _session.NotifyChanged(); };
-        Command("redoCommand").Click += (_, _) => { if (_history.Redo(_session.Media)) _session.NotifyChanged(); };
+        cancelMenuItem.Click += (_, _) => _operationCts?.Cancel();
+        Command("undoCommand").Click += (_, _) => UndoPendingChanges();
+        Command("redoCommand").Click += (_, _) => RedoPendingChanges();
+        undoMenuItem.Click += (_, _) => UndoPendingChanges();
+        redoMenuItem.Click += (_, _) => RedoPendingChanges();
         Command("resetSelectedCommand").Click += (_, _) => ResetPatches(SelectedItems);
         Command("resetAllCommand").Click += (_, _) => ResetPatches(_session.Media);
         Command("minusHourCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromHours(-1));
@@ -262,17 +288,40 @@ public partial class Form1 : Form
         Command("copyGpsCommand").Click += (_, _) => CopyGpsSelected();
         Command("pasteGpsCommand").Click += (_, _) => PasteGpsSelected();
         Command("reverseGpsCommand").Click += async (_, _) => await ReverseGpsSelectedAsync();
+        findGpsMenuItem.Click += bGPS_Click;
+        findGpsQuickItem.Click += bGPS_Click;
+        setGpsQuickItem.Click += (_, _) => StageGpsFromFields();
+        copyGpsQuickItem.Click += (_, _) => CopyGpsSelected();
+        pasteGpsQuickItem.Click += (_, _) => PasteGpsSelected();
+        removeGpsQuickItem.Click += (_, _) => RemoveGpsSelected();
+        reverseGpsQuickItem.Click += async (_, _) => await ReverseGpsSelectedAsync();
         Command("mapCommand").Click += (_, _) => ToggleMap();
-        Command("allFilterCommand").Click += (_, _) => ApplyFilter(_ => true);
-        Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter(item => item.PendingChanges.HasChanges);
-        Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter(item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
-        Command("noDateFilterCommand").Click += (_, _) => ApplyFilter(item => !item.EffectiveCaptureDate.HasValue);
-        Command("errorsFilterCommand").Click += (_, _) => ApplyFilter(item => item.Error is not null);
+        mapQuickCommand.Click += (_, _) => ToggleMap();
+        previewMenuItem.Click += (_, _) => ShowPreview();
+        Command("allFilterCommand").Click += (_, _) => ApplyFilter("Tous", _ => true);
+        Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter("Modifiés", item => item.PendingChanges.HasChanges);
+        Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
+        Command("noDateFilterCommand").Click += (_, _) => ApplyFilter("Sans date", item => !item.EffectiveCaptureDate.HasValue);
+        Command("errorsFilterCommand").Click += (_, _) => ApplyFilter("Erreurs", item => item.Error is not null);
+        allFilterQuickItem.Click += (_, _) => ApplyFilter("Tous", _ => true);
+        modifiedFilterQuickItem.Click += (_, _) => ApplyFilter("Modifiés", item => item.PendingChanges.HasChanges);
+        noGpsFilterQuickItem.Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
+        noDateFilterQuickItem.Click += (_, _) => ApplyFilter("Sans date", item => !item.EffectiveCaptureDate.HasValue);
+        errorsFilterQuickItem.Click += (_, _) => ApplyFilter("Erreurs", item => item.Error is not null);
         Command("restoreBackupCommand").Click += async (_, _) => await RestoreSelectedAsync();
+        selectAllMenuItem.Click += (_, _) => dgv.SelectAll();
+        removeFromSessionMenuItem.Click += (_, _) => RemoveSelectedFromSession();
+        exitMenuItem.Click += (_, _) => Close();
+        guideMenuItem.Click += (_, _) => OpenExternal("https://github.com/fatvicbart/exif-tweaker/blob/main/GUIDE_UTILISATEUR.md");
+        logsMenuItem.Click += (_, _) => OpenLogsDirectory();
+        verifyExifToolMenuItem.Click += async (_, _) => await VerifyExifToolAsync();
+        aboutMenuItem.Click += (_, _) => ShowAbout();
+        dgv.SelectionChanged += (_, _) => UpdateCommandState();
     }
 
-    private void ApplyFilter(Func<PhotoItem, bool> predicate)
+    private void ApplyFilter(string name, Func<PhotoItem, bool> predicate)
     {
+        _activeFilterName = name;
         _activeFilter = predicate;
         RefreshFilter();
     }
@@ -290,6 +339,8 @@ public partial class Form1 : Form
             _view.Insert(Math.Min(index, _view.Count), desired[index]);
         }
         _bindingSource.ResetBindings(false);
+        if (filterQuickCommand is not null) filterQuickCommand.Text = $"Filtre : {_activeFilterName} ({_view.Count}/{_session.Media.Count})";
+        UpdateFilterChecks();
     }
 
     private void OpenDateEditor()
@@ -328,7 +379,16 @@ public partial class Form1 : Form
     {
         _map.Visible = !_map.Visible;
         if (_map.Visible) _map.BringToFront();
+        UpdateMapChecks();
         RefreshMapMarkers();
+    }
+
+
+    private void ShowPreview()
+    {
+        _map.Visible = false;
+        picBox.BringToFront();
+        UpdateMapChecks();
     }
 
     private void SetLocationFromMap(double latitude, double longitude)
@@ -444,6 +504,104 @@ public partial class Form1 : Form
         _sessionController.Reset(list);
     }
 
+
+    private void UndoPendingChanges()
+    {
+        if (_history.Undo(_session.Media)) _session.NotifyChanged();
+    }
+
+    private void RedoPendingChanges()
+    {
+        if (_history.Redo(_session.Media)) _session.NotifyChanged();
+    }
+
+    private void RemoveSelectedFromSession()
+    {
+        foreach (var item in SelectedItems) _session.Remove(item);
+    }
+
+    private void UpdateFilterChecks()
+    {
+        if (allFilterQuickItem is null) return;
+        allFilterCommand.Checked = allFilterQuickItem.Checked = _activeFilterName == "Tous";
+        modifiedFilterCommand.Checked = modifiedFilterQuickItem.Checked = _activeFilterName == "Modifiés";
+        noGpsFilterCommand.Checked = noGpsFilterQuickItem.Checked = _activeFilterName == "Sans GPS";
+        noDateFilterCommand.Checked = noDateFilterQuickItem.Checked = _activeFilterName == "Sans date";
+        errorsFilterCommand.Checked = errorsFilterQuickItem.Checked = _activeFilterName == "Erreurs";
+    }
+
+    private void UpdateMapChecks()
+    {
+        if (mapQuickCommand is null) return;
+        mapQuickCommand.Checked = _map.Visible;
+        mapCommand.Checked = _map.Visible;
+        previewMenuItem.Checked = !_map.Visible;
+    }
+
+    private void UpdateCommandState()
+    {
+        if (applyMenuItem is null) return;
+        var pending = _session.PendingChangeCount;
+        var applyText = $"Vérifier et appliquer tout ({pending})";
+        applyCommand.Text = applyText;
+        applyMenuItem.Text = applyText;
+        applyCommand.Enabled = !_isBusy && pending > 0;
+        applyMenuItem.Enabled = !_isBusy && pending > 0;
+        undoCommand.Enabled = undoMenuItem.Enabled = !_isBusy && _history.CanUndo;
+        redoCommand.Enabled = redoMenuItem.Enabled = !_isBusy && _history.CanRedo;
+        cancelCommand.Enabled = cancelMenuItem.Enabled = _isBusy;
+        operationStatus.Enabled = true;
+    }
+
+    private void OpenLogsDirectory()
+    {
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "logs");
+        Directory.CreateDirectory(directory);
+        OpenExternal(directory);
+    }
+
+    private static void OpenExternal(string target)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Unable to open {target}.", ex);
+            MessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private async Task VerifyExifToolAsync()
+    {
+        try
+        {
+            SetBusy(true);
+            var version = await _exifTool.GetVersionAsync(StartOperation());
+            MessageBox.Show($"ExifTool {version} is available.\n\n{_exifTool.ExecutablePath}", "ExifTool verification", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            AppLogger.Info("ExifTool verification cancelled.");
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("ExifTool verification failed.", ex);
+            MessageBox.Show(ex.Message, "ExifTool unavailable", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
+    private static void ShowAbout()
+    {
+        var version = typeof(Form1).Assembly.GetName().Version?.ToString(3) ?? "unknown";
+        MessageBox.Show($"ExifTweaker {version}\n\nBatch date, timezone and GPS metadata editor powered by ExifTool.", "About ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
     private void UpdateSessionCaption()
     {
         var statistics = _session.Statistics;
@@ -451,6 +609,7 @@ public partial class Form1 : Form
             ? $" | {first:yyyy-MM-dd} to {last:yyyy-MM-dd}"
             : string.Empty;
         Text = $"ExifTweaker — {statistics.MediaCount} media | {statistics.FilesWithGps} GPS | {statistics.PendingChangeCount} pending{range}";
+        UpdateCommandState();
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
@@ -486,11 +645,17 @@ public partial class Form1 : Form
 
     private void SetBusy(bool busy)
     {
+        _isBusy = busy;
         main.Enabled = !busy;
         foreach (ToolStripItem item in commands.Items) item.Enabled = !busy;
+        foreach (ToolStripItem item in navigationMenu.Items) item.Enabled = !busy;
+        actionsMenu.Enabled = true;
         cancelCommand.Enabled = busy;
+        cancelMenuItem.Enabled = busy;
+        operationStatus.Enabled = true;
         operationStatus.Text = busy ? "Working… (Esc to cancel)" : "Ready";
         if (busy) pgb.Value = 0;
+        UpdateCommandState();
     }
 
     private static bool TryCoordinate(string value, out double result) =>
