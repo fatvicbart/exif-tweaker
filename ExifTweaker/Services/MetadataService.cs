@@ -36,13 +36,74 @@ public sealed class MetadataService
         for (var index = 0; index < files.Count; index++)
         {
             ct.ThrowIfCancellationRequested();
-            var item = new PhotoItem(files[index]);
-            if (metadata.TryGetValue(item.FilePath, out var original)) item.Original = original;
-            else item.Error = "Metadata not returned by ExifTool";
-            items.Add(item);
+            items.Add(CreateImportedItem(files[index], metadata));
             progress?.Report(files.Count == 0 ? 100 : (int)(100d * (index + 1) / files.Count));
         }
         return items;
+    }
+
+    internal static PhotoItem CreateImportedItem(string filePath, IReadOnlyDictionary<string, PhotoMetadata> metadata)
+    {
+        var fullPath = Path.GetFullPath(filePath);
+        var item = new PhotoItem(fullPath);
+        if (TryFindMetadata(metadata, fullPath, out var original))
+        {
+            item.Original = original;
+            return item;
+        }
+
+        item.Original = CreateFileSystemMetadata(fullPath);
+        item.ImportNotice = "Aucune métadonnée intégrée n’a été retournée par ExifTool. Le fichier reste modifiable.";
+        AppLogger.Info($"No embedded metadata returned for {fullPath}; imported with filesystem fallback.");
+        return item;
+    }
+
+    private static bool TryFindMetadata(IReadOnlyDictionary<string, PhotoMetadata> metadata, string filePath, out PhotoMetadata original)
+    {
+        if (metadata.TryGetValue(filePath, out original!)) return true;
+
+        var expected = NormalizePath(filePath);
+        foreach (var pair in metadata)
+        {
+            if (!NormalizePath(pair.Key).Equals(expected, StringComparison.OrdinalIgnoreCase)) continue;
+            original = pair.Value;
+            return true;
+        }
+
+        original = null!;
+        return false;
+    }
+
+    private static string NormalizePath(string path)
+    {
+        var fullPath = Path.GetFullPath(path)
+            .Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar)
+            .TrimEnd(Path.DirectorySeparatorChar);
+        return OperatingSystem.IsWindows() && fullPath.StartsWith(@"\\?\", StringComparison.Ordinal)
+            ? fullPath[4..]
+            : fullPath;
+    }
+
+    private static PhotoMetadata CreateFileSystemMetadata(string filePath)
+    {
+        var file = new FileInfo(filePath);
+        var extension = file.Extension.TrimStart('.').ToUpperInvariant();
+        return new PhotoMetadata
+        {
+            FileType = string.IsNullOrWhiteSpace(extension) ? null : extension,
+            MimeType = extension switch
+            {
+                "JPG" or "JPEG" => "image/jpeg",
+                "PNG" => "image/png",
+                "TIF" or "TIFF" => "image/tiff",
+                "HEIC" or "HEIF" => "image/heic",
+                "MP4" => "video/mp4",
+                "MOV" => "video/quicktime",
+                _ => null
+            },
+            FileCreateDate = file.Exists ? file.CreationTime : null,
+            FileModifyDate = file.Exists ? file.LastWriteTime : null
+        };
     }
 
     public MetadataApplyPreview Preview(IEnumerable<PhotoItem> items)
@@ -104,7 +165,7 @@ public sealed class MetadataService
         await _exifTool.RestoreBackupAsync(item, ct);
         var readBack = await _exifTool.ReadAsync(new[] { item.FilePath }, CancellationToken.None);
         if (!readBack.TryGetValue(item.FilePath, out var restored)) throw new InvalidOperationException("ExifTool did not return metadata after restore.");
-        item.Original = restored; item.PendingChanges.Clear(); item.Error = null; item.NotifyChanged();
+        item.Original = restored; item.PendingChanges.Clear(); item.Error = null; item.ImportNotice = null; item.NotifyChanged();
     }
 
     public async Task<MetadataApplyResult> ApplyPendingChangesAsync(IEnumerable<PhotoItem> items, IProgress<int>? progress = null, CancellationToken ct = default)
@@ -134,6 +195,7 @@ public sealed class MetadataService
                 item.Original = refreshed;
                 item.PendingChanges.Clear();
                 item.Error = null;
+                item.ImportNotice = null;
                 item.NotifyChanged();
                 results[index] = new MetadataApplyFileResult(item.FilePath, true, null, refreshed.FileType, File.Exists(item.FilePath + "_original"), Warning: warning);
             }

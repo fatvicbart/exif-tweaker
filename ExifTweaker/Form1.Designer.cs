@@ -65,6 +65,7 @@ namespace ExifTweaker
             cityColumn = new DataGridViewTextBoxColumn();
             countryColumn = new DataGridViewTextBoxColumn();
             statusColumn = new DataGridViewTextBoxColumn();
+            detailsColumn = new DataGridViewTextBoxColumn();
             picBox = new PictureBox();
             pgb = new ProgressBar();
             mapControl = new ExifTweaker.Controls.MapControl();
@@ -374,7 +375,7 @@ namespace ExifTweaker
             dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
             dgv.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgv.Columns.AddRange(new DataGridViewColumn[] { selectedColumn, thumbnailColumn, fileNameColumn, dateColumn, timezoneColumn, locationColumn, deviceColumn, dimensionsColumn, latitudeColumn, longitudeColumn, altitudeColumn, cityColumn, countryColumn, statusColumn });
+            dgv.Columns.AddRange(new DataGridViewColumn[] { selectedColumn, thumbnailColumn, fileNameColumn, dateColumn, timezoneColumn, locationColumn, deviceColumn, dimensionsColumn, latitudeColumn, longitudeColumn, altitudeColumn, cityColumn, countryColumn, statusColumn, detailsColumn });
             dgv.RowTemplate.Height = 72;
             // 
             // selectedColumn
@@ -462,6 +463,14 @@ namespace ExifTweaker
             statusColumn.DataPropertyName = "Status";
             statusColumn.HeaderText = "Status";
             statusColumn.Name = "Status";
+            //
+            // detailsColumn
+            //
+            detailsColumn.AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill;
+            detailsColumn.DataPropertyName = "Details";
+            detailsColumn.HeaderText = "Détails";
+            detailsColumn.MinimumWidth = 220;
+            detailsColumn.Name = "detailsColumn";
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle2.BackColor = SystemColors.Window;
             dataGridViewCellStyle2.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -746,6 +755,7 @@ namespace ExifTweaker
         private System.Windows.Forms.DataGridViewTextBoxColumn cityColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn countryColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn statusColumn;
+        private System.Windows.Forms.DataGridViewTextBoxColumn detailsColumn;
         private System.Windows.Forms.TextBox tType;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.Label label2;

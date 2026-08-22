@@ -7,6 +7,7 @@ public sealed class PhotoItem : INotifyPropertyChanged
 {
     private PhotoMetadata _original = new();
     private string? _error;
+    private string? _importNotice;
     private bool _isSelected;
 
     public PhotoItem(string filePath) => FilePath = filePath;
@@ -14,7 +15,8 @@ public sealed class PhotoItem : INotifyPropertyChanged
     [Browsable(false)] public string FilePath { get; }
     [Browsable(false)] public PhotoMetadata Original { get => _original; set { _original = value; OnPropertyChanged(string.Empty); } }
     [Browsable(false)] public MetadataPatch PendingChanges { get; } = new();
-    [Browsable(false)] public string? Error { get => _error; set { _error = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); } }
+    [Browsable(false)] public string? Error { get => _error; set { _error = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); OnPropertyChanged(nameof(Details)); } }
+    [Browsable(false)] public string? ImportNotice { get => _importNotice; set { _importNotice = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); OnPropertyChanged(nameof(Details)); } }
     public bool IsSelected { get => _isSelected; set { if (_isSelected == value) return; _isSelected = value; OnPropertyChanged(); } }
 
     public string Name => Path.GetFileNameWithoutExtension(FilePath);
@@ -29,7 +31,8 @@ public sealed class PhotoItem : INotifyPropertyChanged
     public string Location => EffectiveLatitude.HasValue && EffectiveLongitude.HasValue ? $"{Latitude}, {Longitude}" : string.Empty;
     public string Device => string.Join(" ", new[] { Original.CameraMake, Original.CameraModel }.Where(value => !string.IsNullOrWhiteSpace(value)));
     public string Dimensions => Original.Width.HasValue && Original.Height.HasValue ? $"{Original.Width}×{Original.Height}" : string.Empty;
-    public string Status => Error is not null ? "Error" : PendingChanges.HasChanges ? "Modified" : !Original.CaptureDate.HasValue ? "Metadata issue" : "Unchanged";
+    public string Status => Error is not null ? "Error" : PendingChanges.HasChanges ? "Modified" : ImportNotice is not null ? "Metadata missing" : !Original.CaptureDate.HasValue ? "Metadata issue" : "Unchanged";
+    public string Details => Error ?? ImportNotice ?? (!Original.CaptureDate.HasValue ? "Aucune date de prise de vue n’a été trouvée." : string.Empty);
     [Browsable(false)] public bool HasPendingChanges => PendingChanges.HasChanges;
 
     [Browsable(false)] public DateTime? EffectiveCaptureDate

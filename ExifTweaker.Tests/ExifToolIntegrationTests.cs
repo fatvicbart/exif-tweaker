@@ -38,11 +38,16 @@ public sealed class ExifToolIntegrationTests
             CreateMinimalTiff(mediaPath);
             var originalHash = SHA256.HashData(await File.ReadAllBytesAsync(mediaPath));
             var service = new ExifToolService(BundledExecutable);
-            var initialRead = await service.ReadAsync(new[] { mediaPath });
-            var item = new PhotoItem(mediaPath)
+            var metadata = new MetadataService(service, new AppSettings
             {
-                Original = initialRead[Path.GetFullPath(mediaPath)]
-            };
+                ExifToolPath = BundledExecutable,
+                BackupStrategy = BackupStrategy.ExifToolOriginal,
+                MaxParallelism = 1
+            });
+            var item = (await metadata.LoadAsync(new[] { mediaPath })).Single();
+            Assert.IsNull(item.Error, item.Details);
+            Assert.IsNull(item.ImportNotice, item.Details);
+            Assert.AreEqual("Metadata issue", item.Status, "A valid image without EXIF must not be classified as an error.");
             var expectedDate = new DateTime(2026, 8, 22, 14, 35, 47);
             item.PendingChanges.CaptureDate = expectedDate;
             item.PendingChanges.OffsetTimeOriginal = TimeSpan.FromHours(2);
@@ -50,12 +55,6 @@ public sealed class ExifToolIntegrationTests
             item.PendingChanges.Longitude = 2.3522;
             item.PendingChanges.Altitude = 35.5;
 
-            var metadata = new MetadataService(service, new AppSettings
-            {
-                ExifToolPath = BundledExecutable,
-                BackupStrategy = BackupStrategy.ExifToolOriginal,
-                MaxParallelism = 1
-            });
             var applyResult = await metadata.ApplyPendingChangesAsync(new[] { item });
 
             var applyErrors = string.Join(" | ", applyResult.Files

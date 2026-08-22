@@ -300,6 +300,7 @@ Un format reconnu peut néanmoins refuser certaines écritures selon sa structur
 | `City` | Ville déjà présente dans les métadonnées |
 | `Country` | Pays déjà présent dans les métadonnées |
 | `Status` | État du média dans la session |
+| `Détails` | Explication d’un statut incomplet ou d’une erreur |
 
 ### États possibles
 
@@ -307,8 +308,11 @@ Un format reconnu peut néanmoins refuser certaines écritures selon sa structur
 |---|---|
 | `Unchanged` | Fichier lu, aucune modification préparée |
 | `Modified` | Au moins une modification attend **Vérifier et appliquer tout (N)** |
+| `Metadata missing` | ExifTool n’a renvoyé aucune métadonnée intégrée ; le fichier est importé avec ses informations système et reste modifiable |
 | `Metadata issue` | Aucune date de capture n’a été trouvée |
 | `Error` | Une lecture, écriture ou restauration a échoué |
+
+Une image sans EXIF ne doit donc pas être classée `Error`. Consultez la colonne `Détails` : elle indique si les métadonnées sont simplement absentes ou si une véritable opération a échoué. Les imports utilisant le fallback sont également inscrits dans `exiftweaker.jsonl` avec le chemin complet du fichier.
 
 Les valeurs `Date`, `Timezone` et GPS affichées intègrent immédiatement les changements préparés. Elles ne prouvent donc pas que le disque a déjà été modifié.
 
@@ -933,6 +937,15 @@ Les métadonnées déjà appliquées restent évidemment sur disque.
 2. installer le .NET 10 Desktop Runtime x64 ;
 3. vérifier l’antivirus ou SmartScreen ;
 4. consulter `%LOCALAPPDATA%\ExifTweaker\logs\exiftweaker.jsonl`.
+
+### Une image affiche `Metadata missing` dès l’import
+
+Ce statut est informatif : l’image a été acceptée, mais ExifTool n’a renvoyé aucune métadonnée intégrée. ExifTweaker conserve le type du fichier ainsi que ses dates système et permet de préparer une date ou une localisation normalement.
+
+- lire la colonne `Détails` ;
+- définir les métadonnées manquantes ;
+- utiliser **Vérifier et appliquer tout (N)** ;
+- après une écriture vérifiée, le statut informatif disparaît.
 
 ### `ExifTool could not be executed`
 
