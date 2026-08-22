@@ -2,6 +2,12 @@
 
 This source tree contains the v2 foundations, batch workflow and geolocation workflow.
 
+## User documentation
+
+The complete French beginner’s manual, covering installation, every screen,
+all commands, settings, workflows, backups and troubleshooting, is available
+in [`GUIDE_UTILISATEUR.md`](../GUIDE_UTILISATEUR.md).
+
 ## Included
 
 - Hard-coded Maps.co API key removed. Configure `EXIFTWEAKER_MAPSCO_API_KEY` in the Windows environment.
