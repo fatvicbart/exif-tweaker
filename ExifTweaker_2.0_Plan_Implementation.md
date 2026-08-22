@@ -57,7 +57,7 @@ briques réutilisables, sans workflow complet.
 |---:|---|---|---:|---|
 | 0 | Sécurisation et nettoyage | Terminé | 95 % | Confirmer hors dépôt la révocation de toute ancienne clé publiée et effectuer une dernière revue sécurité avant diffusion. |
 | 1 | Nouveau modèle métier | Terminé | 100 % | Rien pour le périmètre défini. |
-| 2 | ExifTool comme moteur unique | Terminé | 90 % | Qualifier lecture/écriture sur un corpus Unicode et multi-format réel ; évaluer `-stay_open` si les mesures montrent un besoin. |
+| 2 | ExifTool comme moteur unique | Terminé | 95 % | La distribution Windows est packagée et couverte par des tests dédiés ; qualifier encore un corpus multi-format réel et évaluer `-stay_open` seulement si les mesures le justifient. |
 | 3 | Moteur asynchrone | Terminé | 90 % | Tester systématiquement annulation et progression sur les gros traitements et mesurer l'absence de blocage UI. |
 | 4 | Import et découverte | Terminé | 90 % | Tester de très gros dossiers, les arborescences partiellement inaccessibles et chaque format cible avec de vrais médias. |
 | 5 | Import Session | Terminé | 90 % | Conserver aussi les erreurs de découverte dans la session et compléter les tests de mise à jour dynamique. |
@@ -65,7 +65,7 @@ briques réutilisables, sans workflow complet.
 | 7 | Thumbnails et preview | Partiel | 85 % | Qualifier RAW/HEIC/vidéos réels, mesurer mémoire et fluidité, et vérifier l'invalidation du cache sur un corpus important. |
 | 8 | Éditeur de date complet | Terminé | 95 % | Ajouter des tests d'intégration ExifTool pour les offsets et les dates QuickTime. |
 | 9 | Pending Changes | Terminé | 90 % | Généraliser l'indication `<multiple values>` à tous les éditeurs et ajouter davantage de tests de Reset multi-sélection. |
-| 10 | Écriture ExifTool et backup | Partiel | 85 % | Tester Apply, erreurs partielles, read-back et restauration sur des copies de chaque format réel. |
+| 10 | Écriture ExifTool et backup | Partiel | 90 % | Le pipeline TIFF temporaire est couvert par un test Windows ; qualifier encore les erreurs partielles et chaque format média réel. |
 | 11 | Undo / Reset | Terminé | 90 % | Ajouter des tests d'intégration de restauration physique et de scénarios Apply partiellement réussi. |
 | 12 | Éditeur GPS | Terminé | 95 % | Qualifier l'écriture DMS/altitude par ExifTool sur plusieurs formats. |
 | 13 | Carte WebView2 | Partiel | 85 % | Tester le runtime WebView2 sous Windows, les erreurs de chargement réseau et le comportement sur de grandes sélections. |
@@ -86,24 +86,28 @@ briques réutilisables, sans workflow complet.
 
 | Périmètre | Avancement estimé | Lecture |
 |---|---:|---|
-| MVP, phases 0 à 15 | **90 %** | Fonctionnel dans le code ; qualification Windows, ExifTool et performance encore incomplète. |
+| MVP, phases 0 à 15 | **91 %** | Fonctionnel dans le code ; qualification multi-format réelle et performance encore incomplètes. |
 | Beta, phases 16 à 23 | **15 %** | Quelques fondations réutilisables, mais GPX, historique persistant et analyse de session restent à construire. |
 | Post-2.0, phases 24 à 25 | **0 %** | Aucun connecteur Immich ou Immich-AI présent. |
-| Plan complet, phases 0 à 25 | **60 %** | Moyenne arithmétique non pondérée des 26 phases. |
+| Plan complet, phases 0 à 25 | **61 %** | Moyenne arithmétique non pondérée des 26 phases. |
 
 ### Validation actuellement acquise
 
--   compilation Release .NET 10 confirmée avec 0 erreur ;
--   8 tests automatisés réussis sur 8 en validation locale ;
--   workflow GitHub Actions Windows réussi : restore et build Release
-    validés, 8 tests réussis sur 8, 0 échec et 0 test ignoré ;
+-   compilation et publication Release .NET 10 confirmées avec 0 erreur ;
+-   distribution Windows ExifTool complète : 502 fichiers copiés dans
+    les sorties application, tests et publication ;
+-   nouvelle suite de 14 tests : 12 réussis localement et 2 tests
+    d'intégration ExifTool réservés au runner Windows ;
+-   dernier workflow GitHub de référence réussi avec 8 tests sur 8 ; le
+    workflow renforcé doit maintenant valider les 14 tests, la commande
+    `exiftool -ver`, Apply, read-back, backup, restauration et chemin Unicode ;
 -   aucun secret en clair, `BackgroundWorker`, thread manuel ou
     dépendance métier à ExifLibrary détecté.
 
 ### Prochaine priorité recommandée
 
-1.  Conserver le run GitHub réussi comme validation reproductible
-    Windows de la compilation et des tests automatisés.
+1.  Exécuter le workflow GitHub renforcé et conserver son run comme
+    validation Windows de l'ExifTool embarqué et des 14 tests.
 2.  Qualifier les phases 0 à 15 sous Windows sur un corpus JPG, HEIC,
     RAW, MOV et MP4 et avec au moins 1 000 médias.
 3.  Corriger les défauts révélés par cette qualification pour figer le

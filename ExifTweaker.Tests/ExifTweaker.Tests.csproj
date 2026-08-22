@@ -19,4 +19,10 @@
     <Compile Include="..\ExifTweaker\Services\MetadataService.cs" Link="Source\Services\MetadataService.cs" />
     <Compile Include="..\ExifTweaker\Services\SessionController.cs" Link="Source\Services\SessionController.cs" />
   </ItemGroup>
+  <ItemGroup Condition="Exists('..\ExifTweaker\Infrastructure\exiftool')">
+    <Content Include="..\ExifTweaker\Infrastructure\exiftool\**\*">
+      <Link>exiftool\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
 </Project>
