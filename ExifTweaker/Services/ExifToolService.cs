@@ -78,9 +78,9 @@ public sealed class ExifToolService
             }
         }
 
-        if (patch.RemoveOffsetTimeOriginal) args.Add("-OffsetTimeOriginal=");
+        if (patch.RemoveOffsetTimeOriginal) args.Add("-ExifIFD:OffsetTimeOriginal=");
         else if (patch.OffsetTimeOriginal is TimeSpan offset)
-            args.Add($"-OffsetTimeOriginal={FormatExifOffset(offset)}");
+            args.Add($"-ExifIFD:OffsetTimeOriginal={FormatExifOffset(offset)}");
 
         if (patch.RemoveLocation)
         {

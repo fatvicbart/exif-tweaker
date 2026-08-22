@@ -58,7 +58,9 @@ public sealed class ExifToolIntegrationTests
             });
             var applyResult = await metadata.ApplyPendingChangesAsync(new[] { item });
 
-            Assert.AreEqual(1, applyResult.SucceededCount);
+            var applyErrors = string.Join(" | ", applyResult.Files
+                .Where(result => !result.Succeeded).Select(result => result.Error ?? "Cancelled"));
+            Assert.AreEqual(1, applyResult.SucceededCount, applyErrors);
             Assert.AreEqual(0, applyResult.FailedCount);
             Assert.IsFalse(item.PendingChanges.HasChanges, "The verified patch was not cleared.");
             Assert.IsTrue(File.Exists(mediaPath + "_original"), "ExifTool did not create its original backup.");
