@@ -28,6 +28,7 @@ public partial class Form1 : Form
     private readonly FileDiscoveryService _discovery = new();
     private readonly MetadataService _metadata;
     private readonly IGeocodingService _geocoding;
+    private readonly UpdateService _updates;
     private bool _isBusy;
     private string _activeFilterName = "Tous";
     private GpsCoordinate? _gpsClipboard;
@@ -51,6 +52,7 @@ public partial class Form1 : Form
         _metadata = new MetadataService(_exifTool, _settings);
         _thumbnails = new ThumbnailService(_exifTool, _settings);
         _geocoding = new GeocodingService(_settings);
+        _updates = new UpdateService(_settings);
         _sessionController = new SessionController(_session, _history);
         InitializeComponent();
         InitializeNavigation();
@@ -69,6 +71,8 @@ public partial class Form1 : Form
         {
             try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution); }
             catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); MessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            if (_settings.CheckForUpdatesAutomatically)
+                await _updates.CheckAndPromptAsync(this, manual: false);
         };
         _session.PropertyChanged += (_, _) => { UpdateSessionCaption(); RefreshFilter(); };
         RefreshFilter();

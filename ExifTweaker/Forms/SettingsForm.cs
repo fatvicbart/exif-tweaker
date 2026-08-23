@@ -1,4 +1,5 @@
 using ExifTweaker.Infrastructure;
+using ExifTweaker.Services;
 
 namespace ExifTweaker.Forms;
 
@@ -19,6 +20,9 @@ public sealed partial class SettingsForm : Form
         recursive.Checked = settings.RecursiveImport;
         diskCache.Checked = settings.ThumbnailDiskCache;
         mapTiles.Text = settings.MapTileUrl;
+        autoUpdates.Checked = settings.CheckForUpdatesAutomatically;
+        prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
+        installedVersion.Text = $"Version {new UpdateService(settings).DisplayVersion}";
     }
 
     private void saveButton_Click(object? sender, EventArgs e)
@@ -31,8 +35,17 @@ public sealed partial class SettingsForm : Form
         _settings.RecursiveImport = recursive.Checked;
         _settings.ThumbnailDiskCache = diskCache.Checked;
         _settings.MapTileUrl = mapTiles.Text.Trim();
+        _settings.CheckForUpdatesAutomatically = autoUpdates.Checked;
+        _settings.IncludePrereleaseUpdates = prereleaseUpdates.Checked;
         _settings.Save();
         DialogResult = DialogResult.OK;
+    }
+
+    private async void checkUpdatesButton_Click(object? sender, EventArgs e)
+    {
+        checkUpdatesButton.Enabled = false;
+        try { await new UpdateService(_settings).CheckAndPromptAsync(this, manual: true); }
+        finally { if (!IsDisposed) checkUpdatesButton.Enabled = true; }
     }
 
     private void browseButton_Click(object? sender, EventArgs e)

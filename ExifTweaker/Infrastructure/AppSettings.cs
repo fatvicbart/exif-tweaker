@@ -15,6 +15,8 @@ public sealed class AppSettings
     public bool ThumbnailDiskCache { get; set; } = true;
     public string MapTileUrl { get; set; } = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
     public string MapAttribution { get; set; } = "OpenStreetMap contributors";
+    public bool CheckForUpdatesAutomatically { get; set; } = true;
+    public bool IncludePrereleaseUpdates { get; set; } = false;
 
     public static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "settings.json");

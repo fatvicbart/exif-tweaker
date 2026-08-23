@@ -1,15 +1,15 @@
+using Velopack;
+
 namespace ExifTweaker
 {
     internal static class Program
     {
-        /// <summary>
-        ///  The main entry point for the application.
-        /// </summary>
         [STAThread]
         static void Main()
         {
-            // To customize application configuration such as set high DPI settings or default font,
-            // see https://aka.ms/applicationconfiguration.
+            // Must be the first startup operation so install/update hooks can exit quickly.
+            VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
+
             ApplicationConfiguration.Initialize();
             Application.SetColorMode(SystemColorMode.System);
             Application.Run(new Form1());
