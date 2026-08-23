@@ -97,7 +97,7 @@ jobs:
           dotnet publish ExifTweaker/ExifTweaker.csproj `
             --configuration Release `
             --runtime win-x64 `
-            --self-contained false `
+            --self-contained true `
             -p:Version=$env:VERSION `
             --output $publishDirectory
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -131,6 +131,35 @@ jobs:
           $hash = (Get-FileHash -LiteralPath "artifacts/$env:ARCHIVE" -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $env:ARCHIVE" | Set-Content -LiteralPath "artifacts/$env:CHECKSUM" -Encoding ascii
 
+      - name: Build Velopack installer and update packages
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $publishDirectory = "artifacts/ExifTweaker-$env:VERSION-win-x64"
+          $notesPath = "artifacts/release-notes.md"
+          $previousTag = git describe --tags --abbrev=0 2>$null
+          if ($LASTEXITCODE -eq 0 -and $previousTag) {
+            $changes = git log "$previousTag..HEAD" --pretty=format:"- %s"
+          } else {
+            $changes = git log -20 --pretty=format:"- %s"
+          }
+          if (-not $changes) { $changes = "- Maintenance release" }
+          @("# ExifTweaker $env:VERSION", "", $changes) | Set-Content -LiteralPath $notesPath -Encoding utf8
+
+          dotnet tool install -g vpk --version 1.2.0
+          vpk download github --repoUrl "https://github.com/${{ github.repository }}" --token "${{ github.token }}"
+          vpk pack `
+            --packId ExifTweaker `
+            --packVersion $env:VERSION `
+            --packDir $publishDirectory `
+            --mainExe ExifTweaker.exe `
+            --packTitle ExifTweaker `
+            --icon ExifTweaker/exif.ico `
+            --framework webview2 `
+            --releaseNotes $notesPath
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
@@ -138,6 +167,7 @@ jobs:
           path: |
             artifacts/${{ steps.version.outputs.archive }}
             artifacts/${{ steps.version.outputs.checksum }}
+            Releases/**
           if-no-files-found: error
 
       - name: Commit version and create tag
@@ -158,12 +188,24 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
           ARCHIVE: ${{ steps.version.outputs.archive }}
           CHECKSUM: ${{ steps.version.outputs.checksum }}
         run: |
           gh release create $env:TAG `
-            "artifacts/$env:ARCHIVE" `
-            "artifacts/$env:CHECKSUM" `
             --verify-tag `
             --title "ExifTweaker $env:TAG" `
             --generate-notes
+
+          vpk upload github `
+            --repoUrl "https://github.com/${{ github.repository }}" `
+            --token "${{ github.token }}" `
+            --publish `
+            --merge `
+            --releaseName "ExifTweaker $env:TAG" `
+            --tag $env:TAG
+
+          gh release upload $env:TAG `
+            "artifacts/$env:ARCHIVE" `
+            "artifacts/$env:CHECKSUM" `
+            --clobber
