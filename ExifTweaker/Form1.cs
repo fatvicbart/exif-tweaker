@@ -252,6 +252,7 @@ public partial class Form1 : Form
 
     private void PopulateGpsSuggestions(IReadOnlyList<Coordinates> results, string query)
     {
+        var caretPosition = Math.Clamp(tGPS.SelectionStart, 0, query.Length);
         _updatingGpsSuggestions = true;
         try
         {
@@ -259,16 +260,25 @@ public partial class Form1 : Form
             tGPS.Items.Clear();
             foreach (var result in results) tGPS.Items.Add(result);
             tGPS.SelectedIndex = -1;
-            tGPS.Text = query;
-            tGPS.SelectionStart = tGPS.Text.Length;
-            tGPS.SelectionLength = 0;
+            if (!tGPS.Text.Equals(query, StringComparison.Ordinal)) tGPS.Text = query;
             tGPS.DroppedDown = results.Count > 0 && tGPS.Focused;
+            RestoreGpsSearchCaret(query, caretPosition);
         }
         finally
         {
             tGPS.EndUpdate();
             _updatingGpsSuggestions = false;
         }
+
+        if (!IsDisposed && IsHandleCreated)
+            BeginInvoke(() => RestoreGpsSearchCaret(query, caretPosition));
+    }
+
+    private void RestoreGpsSearchCaret(string expectedText, int caretPosition)
+    {
+        if (IsDisposed || !tGPS.Text.Equals(expectedText, StringComparison.Ordinal)) return;
+        tGPS.SelectionStart = Math.Clamp(caretPosition, 0, tGPS.Text.Length);
+        tGPS.SelectionLength = 0;
     }
 
     private void ClearGpsSuggestions()
