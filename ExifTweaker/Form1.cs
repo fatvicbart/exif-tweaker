@@ -287,14 +287,41 @@ public partial class Form1 : Form
 
     private void ClearGpsSuggestions()
     {
+        if (tGPS.Items.Count == 0)
+        {
+            if (tGPS.DroppedDown) tGPS.DroppedDown = false;
+            return;
+        }
+
+        var text = tGPS.Text;
+        var selectionStart = tGPS.SelectionStart;
+        var selectionLength = tGPS.SelectionLength;
         _updatingGpsSuggestions = true;
         try
         {
             tGPS.DroppedDown = false;
+            tGPS.BeginUpdate();
             tGPS.Items.Clear();
             tGPS.SelectedIndex = -1;
+            if (!tGPS.Text.Equals(text, StringComparison.Ordinal)) tGPS.Text = text;
         }
-        finally { _updatingGpsSuggestions = false; }
+        finally
+        {
+            tGPS.EndUpdate();
+            _updatingGpsSuggestions = false;
+        }
+
+        RestoreGpsSearchSelection(text, selectionStart, selectionLength);
+        if (!IsDisposed && IsHandleCreated)
+            BeginInvoke(() => RestoreGpsSearchSelection(text, selectionStart, selectionLength));
+    }
+
+    private void RestoreGpsSearchSelection(string expectedText, int selectionStart, int selectionLength)
+    {
+        if (IsDisposed || !tGPS.Text.Equals(expectedText, StringComparison.Ordinal)) return;
+        selectionStart = Math.Clamp(selectionStart, 0, tGPS.Text.Length);
+        tGPS.SelectionStart = selectionStart;
+        tGPS.SelectionLength = Math.Clamp(selectionLength, 0, tGPS.Text.Length - selectionStart);
     }
 
     private void SelectGpsSuggestion()

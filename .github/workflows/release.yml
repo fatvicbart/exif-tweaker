@@ -183,7 +183,7 @@ jobs:
           git tag -a $env:TAG -m "ExifTweaker $env:VERSION"
           git push --atomic origin HEAD:main $env:TAG
 
-      - name: Create GitHub release
+      - name: Publish GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -192,11 +192,6 @@ jobs:
           ARCHIVE: ${{ steps.version.outputs.archive }}
           CHECKSUM: ${{ steps.version.outputs.checksum }}
         run: |
-          gh release create $env:TAG `
-            --verify-tag `
-            --title "ExifTweaker $env:TAG" `
-            --generate-notes
-
           vpk upload github `
             --repoUrl "https://github.com/${{ github.repository }}" `
             --token "${{ github.token }}" `
