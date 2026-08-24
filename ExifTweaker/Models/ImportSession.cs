@@ -23,8 +23,8 @@ public sealed class ImportSession : INotifyPropertyChanged
 
     public DateTimeOffset OpenedAt { get; }
     public BindingList<PhotoItem> Media { get; } = new();
-    public bool HasPendingChanges => Media.Any(item => item.PendingChanges.HasChanges);
-    public int PendingChangeCount => Media.Count(item => item.PendingChanges.HasChanges);
+    public bool HasPendingChanges => Media.Any(item => item.HasPendingChanges);
+    public int PendingChangeCount => Media.Count(item => item.HasPendingChanges);
 
     public ImportSessionStatistics Statistics
     {

@@ -3,6 +3,7 @@ using System.Text.Json;
 namespace ExifTweaker.Infrastructure;
 
 public enum BackupStrategy { ExifToolOriginal, OverwriteOriginal }
+public enum AppThemeMode { Automatic, Light, Dark }
 
 public sealed class AppSettings
 {
@@ -10,6 +11,7 @@ public sealed class AppSettings
     public string? MapsCoApiKey { get; set; }
     public string? ExifToolPath { get; set; }
     public BackupStrategy BackupStrategy { get; set; } = BackupStrategy.ExifToolOriginal;
+    public AppThemeMode Theme { get; set; } = AppThemeMode.Automatic;
     public int MaxParallelism { get; set; } = Math.Clamp(Environment.ProcessorCount, 2, 8);
     public bool RecursiveImport { get; set; } = true;
     public bool ThumbnailDiskCache { get; set; } = true;

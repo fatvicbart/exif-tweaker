@@ -62,6 +62,7 @@ public sealed class UpdateService
             if (answer != DialogResult.Yes) return;
 
             using var progress = new UpdateProgressForm(target.Version.ToString());
+            ThemeService.Apply(progress, _settings.Theme);
             progress.Show(owner);
             progress.Refresh();
 

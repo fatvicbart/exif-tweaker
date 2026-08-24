@@ -41,31 +41,22 @@ public sealed class GpsAndHistoryTests
     }
 
     [TestMethod]
-    public void PrepareVisibleValuesStagesDateAndGpsAsOneUndoableAction()
+    public void DateAndGpsPreparationAreIndependent()
     {
         var newDate = new DateTime(2024, 5, 1, 12, 30, 0);
-        var item = new PhotoItem("sample.jpg")
-        {
-            Original = new PhotoMetadata { CaptureDate = new DateTime(2024, 1, 1, 8, 0, 0) }
-        };
+        var item = new PhotoItem("sample.jpg") { Original = new PhotoMetadata { CaptureDate = new DateTime(2024, 1, 1) } };
         var session = new ImportSession();
         session.AddRange(new[] { item });
-        var history = new EditHistory();
-        var controller = new SessionController(session, history);
+        var controller = new SessionController(session, new EditHistory());
 
-        controller.StageVisibleValues(
-            new[] { item },
-            newDate,
-            new GpsCoordinate(48.8566, 2.3522, 35),
-            new LocationEditorService());
+        controller.StageDate(new[] { item }, newDate);
+        Assert.AreEqual(newDate, item.PendingChanges.CaptureDate);
+        Assert.IsNull(item.PendingChanges.Latitude);
 
+        controller.SetLocation(new[] { item }, 48.8566, 2.3522, 35, new LocationEditorService());
         Assert.AreEqual(newDate, item.PendingChanges.CaptureDate);
         Assert.AreEqual(48.8566, item.PendingChanges.Latitude);
         Assert.AreEqual(2.3522, item.PendingChanges.Longitude);
-        Assert.AreEqual(35d, item.PendingChanges.Altitude);
-        Assert.IsTrue(history.Undo(session.Media));
-        Assert.IsFalse(item.PendingChanges.HasChanges);
-        Assert.IsFalse(history.CanUndo);
     }
 
     [TestMethod]
@@ -140,5 +131,41 @@ public sealed class GpsAndHistoryTests
         Assert.AreEqual("Modified", item.Status);
         StringAssert.Contains(item.Details, "Localisation GPS supprimée");
         Assert.AreEqual(string.Empty, item.Location);
+    }
+    [TestMethod]
+    public void IdenticalPreparedValuesDoNotCreateAModification()
+    {
+        var originalDate = new DateTime(2024, 1, 1, 8, 0, 0);
+        var item = new PhotoItem("sample.jpg")
+        {
+            Original = new PhotoMetadata { CaptureDate = originalDate, Latitude = 48.8566, Longitude = 2.3522, Altitude = 35 }
+        };
+        var session = new ImportSession();
+        session.AddRange(new[] { item });
+        var controller = new SessionController(session, new EditHistory());
+
+        controller.StageDate(new[] { item }, originalDate);
+        controller.SetLocation(new[] { item }, 48.8566, 2.3522, 35, new LocationEditorService());
+
+        Assert.IsFalse(item.PendingChanges.HasChanges);
+        Assert.AreEqual("Unchanged", item.Status);
+        Assert.AreEqual(string.Empty, item.Details);
+        Assert.AreEqual(0, session.PendingChangeCount);
+        Assert.IsFalse(controller.History.CanUndo);
+    }
+
+    [TestMethod]
+    public void ModifiedDetailsUseOneLinePerChange()
+    {
+        var item = new PhotoItem("sample.jpg")
+        {
+            Original = new PhotoMetadata { CaptureDate = new DateTime(2024, 1, 1), Latitude = 1, Longitude = 2 }
+        };
+        item.PendingChanges.CaptureDate = new DateTime(2024, 1, 2);
+        item.PendingChanges.Latitude = 3;
+        item.PendingChanges.Longitude = 4;
+
+        StringAssert.Contains(item.Details, Environment.NewLine);
+        Assert.AreEqual(2, item.Details.Split(Environment.NewLine).Length);
     }
 }

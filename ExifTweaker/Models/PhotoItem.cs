@@ -8,7 +8,6 @@ public sealed class PhotoItem : INotifyPropertyChanged
     private PhotoMetadata _original = new();
     private string? _error;
     private string? _importNotice;
-    private bool _isSelected;
     private string _resolvedLocation = string.Empty;
     private double? _resolvedLatitude;
     private double? _resolvedLongitude;
@@ -20,7 +19,6 @@ public sealed class PhotoItem : INotifyPropertyChanged
     [Browsable(false)] public MetadataPatch PendingChanges { get; } = new();
     [Browsable(false)] public string? Error { get => _error; set { _error = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); OnPropertyChanged(nameof(Details)); } }
     [Browsable(false)] public string? ImportNotice { get => _importNotice; set { _importNotice = value; OnPropertyChanged(); OnPropertyChanged(nameof(Status)); OnPropertyChanged(nameof(Details)); } }
-    public bool IsSelected { get => _isSelected; set { if (_isSelected == value) return; _isSelected = value; OnPropertyChanged(); } }
 
     public string Name => Path.GetFileNameWithoutExtension(FilePath);
     public string FileName => Path.GetFileName(FilePath);
@@ -34,11 +32,11 @@ public sealed class PhotoItem : INotifyPropertyChanged
         : EffectiveLatitude.HasValue && EffectiveLongitude.HasValue ? "Identification…" : string.Empty;
     public string Device => string.Join(" ", new[] { Original.CameraMake, Original.CameraModel }.Where(value => !string.IsNullOrWhiteSpace(value)));
     public string Dimensions => Original.Width.HasValue && Original.Height.HasValue ? $"{Original.Width}×{Original.Height}" : string.Empty;
-    public string Status => Error is not null ? "Error" : PendingChanges.HasChanges ? "Modified" : ImportNotice is not null ? "Metadata missing" : !Original.CaptureDate.HasValue ? "Metadata issue" : "Unchanged";
-    public string Details => Error ?? (PendingChanges.HasChanges
+    public string Status => Error is not null ? "Error" : HasMeaningfulChanges ? "Modified" : ImportNotice is not null ? "Metadata missing" : !Original.CaptureDate.HasValue ? "Metadata issue" : "Unchanged";
+    public string Details => Error ?? (HasMeaningfulChanges
         ? DescribePendingChanges()
         : ImportNotice ?? (!Original.CaptureDate.HasValue ? "Aucune date de prise de vue n’a été trouvée." : string.Empty));
-    [Browsable(false)] public bool HasPendingChanges => PendingChanges.HasChanges;
+    [Browsable(false)] public bool HasPendingChanges => HasMeaningfulChanges;
 
     [Browsable(false)] public DateTime? EffectiveCaptureDate
     {
@@ -82,18 +80,54 @@ public sealed class PhotoItem : INotifyPropertyChanged
         Math.Abs(latitude - resolvedLatitude) < 0.0000005 && Math.Abs(longitude - resolvedLongitude) < 0.0000005 &&
         !string.IsNullOrWhiteSpace(_resolvedLocation);
 
+    [Browsable(false)] public bool HasMeaningfulChanges => !string.IsNullOrEmpty(DescribePendingChanges());
+
+    public void NormalizePendingChanges()
+    {
+        var patch = PendingChanges;
+        if (patch.HasDateChange && Original.CaptureDate == EffectiveCaptureDate)
+        {
+            patch.CaptureDate = null;
+            patch.DateShift = null;
+            patch.DateShiftYears = 0;
+            patch.DateShiftMonths = 0;
+            patch.ConvertToOffset = false;
+        }
+        if (patch.HasOffsetChange && Original.Offset == EffectiveOffset)
+        {
+            patch.OffsetTimeOriginal = null;
+            patch.RemoveOffsetTimeOriginal = false;
+        }
+        if (patch.HasLocationChange && GpsEqualsOriginal())
+        {
+            patch.Latitude = null;
+            patch.Longitude = null;
+            patch.Altitude = null;
+            patch.RemoveAltitude = false;
+            patch.RemoveLocation = false;
+        }
+    }
+
+    private bool GpsEqualsOriginal() =>
+        NullableCoordinateEquals(Original.Latitude, EffectiveLatitude) &&
+        NullableCoordinateEquals(Original.Longitude, EffectiveLongitude) &&
+        NullableCoordinateEquals(Original.Altitude, EffectiveAltitude);
+
+    private static bool NullableCoordinateEquals(double? left, double? right) =>
+        !left.HasValue && !right.HasValue || left.HasValue && right.HasValue && Math.Abs(left.Value - right.Value) < 0.0000005;
+
     private string DescribePendingChanges()
     {
         var changes = new List<string>();
-        if (PendingChanges.HasDateChange)
+        if (PendingChanges.HasDateChange && Original.CaptureDate != EffectiveCaptureDate)
             changes.Add($"Date : {FormatDate(Original.CaptureDate)} → {FormatDate(EffectiveCaptureDate)}");
-        if (PendingChanges.HasOffsetChange)
+        if (PendingChanges.HasOffsetChange && Original.Offset != EffectiveOffset)
             changes.Add($"Fuseau : {FormatNullableOffset(Original.Offset)} → {FormatNullableOffset(EffectiveOffset)}");
         if (PendingChanges.RemoveLocation)
             changes.Add("Localisation GPS supprimée");
-        else if (PendingChanges.HasLocationChange)
+        else if (PendingChanges.HasLocationChange && !GpsEqualsOriginal())
             changes.Add($"GPS : {FormatGps(Original.Latitude, Original.Longitude, Original.Altitude)} → {FormatGps(EffectiveLatitude, EffectiveLongitude, EffectiveAltitude)}");
-        return string.Join(" ; ", changes);
+        return string.Join(Environment.NewLine, changes);
     }
 
     private static string FormatDate(DateTime? value) => value?.ToString("yyyy-MM-dd HH:mm:ss") ?? "absente";

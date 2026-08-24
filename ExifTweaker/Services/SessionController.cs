@@ -15,34 +15,7 @@ public sealed class SessionController
 
     public void StageDate(IEnumerable<PhotoItem> items, DateTime date)
     {
-        EditDate(items, new DateEditRequest { Mode = DateEditMode.Set, Date = date });
-    }
-
-    public void StageVisibleValues(
-        IEnumerable<PhotoItem> items,
-        DateTime date,
-        GpsCoordinate? location,
-        LocationEditorService locations)
-    {
-        var selected = items.ToList();
-        if (selected.Count == 0) return;
-        if (location is not null)
-            LocationEditorService.Validate(location.Latitude, location.Longitude, location.Altitude);
-
-        History.Capture(selected);
-        foreach (var item in selected)
-        {
-            item.PendingChanges.CaptureDate = date;
-            item.PendingChanges.DateShift = null;
-            item.PendingChanges.DateShiftYears = 0;
-            item.PendingChanges.DateShiftMonths = 0;
-            item.NotifyChanged();
-        }
-
-        if (location is not null)
-            locations.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude);
-
-        Session.NotifyChanged();
+        EditDate(items.Where(item => item.EffectiveCaptureDate != date), new DateEditRequest { Mode = DateEditMode.Set, Date = date });
     }
 
     public void ShiftDate(IEnumerable<PhotoItem> items, TimeSpan shift)
@@ -85,6 +58,7 @@ public sealed class SessionController
                 patch.RemoveOffsetTimeOriginal = request.RemoveTimezone;
                 patch.ConvertToOffset = !request.RemoveTimezone && request.TimezoneMode == TimezoneChangeMode.ConvertInstant;
             }
+            item.NormalizePendingChanges();
             item.NotifyChanged();
         }
         Session.NotifyChanged();
@@ -92,21 +66,26 @@ public sealed class SessionController
 
     public void SetLocation(IEnumerable<PhotoItem> items, double latitude, double longitude, double? altitude, LocationEditorService locations)
     {
-        var selected = items.ToList();
+        var selected = items.Where(item => !SameCoordinate(item.EffectiveLatitude, latitude) || !SameCoordinate(item.EffectiveLongitude, longitude) || !SameCoordinate(item.EffectiveAltitude, altitude)).ToList();
         if (selected.Count == 0) return;
         History.Capture(selected);
         locations.SetLocation(selected, latitude, longitude, altitude);
+        foreach (var item in selected) { item.NormalizePendingChanges(); item.NotifyChanged(); }
         Session.NotifyChanged();
     }
 
     public void RemoveLocation(IEnumerable<PhotoItem> items, LocationEditorService locations)
     {
-        var selected = items.ToList();
+        var selected = items.Where(item => item.EffectiveLatitude.HasValue || item.EffectiveLongitude.HasValue || item.EffectiveAltitude.HasValue).ToList();
         if (selected.Count == 0) return;
         History.Capture(selected);
         locations.RemoveLocation(selected);
+        foreach (var item in selected) { item.NormalizePendingChanges(); item.NotifyChanged(); }
         Session.NotifyChanged();
     }
+
+    private static bool SameCoordinate(double? left, double? right) =>
+        !left.HasValue && !right.HasValue || left.HasValue && right.HasValue && Math.Abs(left.Value - right.Value) < 0.0000005;
 
     public void Reset(IEnumerable<PhotoItem> items)
     {

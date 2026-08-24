@@ -7,6 +7,7 @@ partial class SettingsForm
     private TextBox apiKey;
     private TextBox exifToolPath;
     private ComboBox backup;
+    private ComboBox theme;
     private NumericUpDown parallelism;
     private CheckBox recursive;
     private CheckBox diskCache;
@@ -31,6 +32,8 @@ partial class SettingsForm
         apiKey = new TextBox { Dock = DockStyle.Fill, UseSystemPasswordChar = true };
         exifToolPath = new TextBox { Dock = DockStyle.Fill };
         backup = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+        theme = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Dock = DockStyle.Fill };
+        theme.Items.AddRange(new object[] { "Automatique", "Clair", "Sombre" });
         backup.Items.AddRange(new object[] { "Keep ExifTool original backup", "Overwrite original without backup" });
         parallelism = new NumericUpDown { Minimum = 1, Maximum = 16, Dock = DockStyle.Left };
         recursive = new CheckBox { Text = "Recursive folder import", AutoSize = true };
@@ -43,11 +46,11 @@ partial class SettingsForm
         prereleaseUpdates = new CheckBox { Text = "Inclure les préversions GitHub", AutoSize = true };
         installedVersion = new Label { AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
         checkUpdatesButton = new Button { Text = "Rechercher maintenant…", AutoSize = true };
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), ColumnCount = 3, RowCount = 13 };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), ColumnCount = 3, RowCount = 14 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (var i = 0; i < 12; i++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        for (var i = 0; i < 13; i++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         browseButton.Click += browseButton_Click;
         saveButton.Click += saveButton_Click;
@@ -62,18 +65,19 @@ partial class SettingsForm
         AddRow(root, 5, "Import", recursive);
         AddRow(root, 6, "Thumbnail cache", diskCache);
         AddRow(root, 7, "Map tile URL", mapTiles);
-        AddRow(root, 8, "Updates", autoUpdates);
-        AddRow(root, 9, "Update channel", prereleaseUpdates);
-        AddRow(root, 10, "Installed", installedVersion);
-        root.Controls.Add(checkUpdatesButton, 1, 11);
+        AddRow(root, 8, "Thème", theme);
+        AddRow(root, 9, "Updates", autoUpdates);
+        AddRow(root, 10, "Update channel", prereleaseUpdates);
+        AddRow(root, 11, "Installed", installedVersion);
+        root.Controls.Add(checkUpdatesButton, 1, 12);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         buttons.Controls.AddRange(new Control[] { cancelButton, saveButton });
-        root.Controls.Add(buttons, 0, 12);
+        root.Controls.Add(buttons, 0, 13);
         root.SetColumnSpan(buttons, 3);
 
         AcceptButton = saveButton;
         CancelButton = cancelButton;
-        ClientSize = new Size(720, 500);
+        ClientSize = new Size(720, 540);
         Controls.Add(root);
         MinimizeBox = false;
         MaximizeBox = false;

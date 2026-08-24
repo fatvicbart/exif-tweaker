@@ -108,7 +108,7 @@ public sealed class MetadataService
 
     public MetadataApplyPreview Preview(IEnumerable<PhotoItem> items)
     {
-        var changed = items.Where(item => item.PendingChanges.HasChanges).ToList();
+        var changed = items.Where(item => item.HasPendingChanges).ToList();
         var files = changed.Select(item => new MetadataApplyPreviewFile(
             item.FilePath,
             item.Original.FileType ?? Path.GetExtension(item.FilePath).TrimStart('.').ToUpperInvariant(),
@@ -170,7 +170,7 @@ public sealed class MetadataService
 
     public async Task<MetadataApplyResult> ApplyPendingChangesAsync(IEnumerable<PhotoItem> items, IProgress<int>? progress = null, CancellationToken ct = default)
     {
-        var changed = items.Where(item => item.PendingChanges.HasChanges).ToList();
+        var changed = items.Where(item => item.HasPendingChanges).ToList();
         var results = new MetadataApplyFileResult?[changed.Count];
         var backupOriginal = _settings.BackupStrategy == BackupStrategy.ExifToolOriginal;
         using var gate = new SemaphoreSlim(Math.Clamp(_settings.MaxParallelism, 1, 16));

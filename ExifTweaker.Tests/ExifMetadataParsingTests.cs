@@ -29,5 +29,6 @@ public sealed class ExifMetadataParsingTests
     public void NewSettingsUseNominatimByDefault()
     {
         Assert.AreEqual("Nominatim", new AppSettings().GeocodingProvider);
+        Assert.AreEqual(AppThemeMode.Automatic, new AppSettings().Theme);
     }
 }

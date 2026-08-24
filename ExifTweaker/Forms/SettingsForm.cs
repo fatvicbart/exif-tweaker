@@ -11,6 +11,7 @@ public sealed partial class SettingsForm : Form
     {
         _settings = settings;
         InitializeComponent();
+        theme.SelectedIndexChanged += (_, _) => ThemeService.Apply(this, SelectedTheme);
         provider.Items.AddRange(new object[] { "Maps.co", "Nominatim" });
         provider.SelectedItem = provider.Items.Cast<string>().FirstOrDefault(x => x.Equals(settings.GeocodingProvider, StringComparison.OrdinalIgnoreCase)) ?? "Nominatim";
         apiKey.Text = settings.MapsCoApiKey ?? string.Empty;
@@ -20,9 +21,24 @@ public sealed partial class SettingsForm : Form
         recursive.Checked = settings.RecursiveImport;
         diskCache.Checked = settings.ThumbnailDiskCache;
         mapTiles.Text = settings.MapTileUrl;
+        theme.SelectedIndex = settings.Theme switch { AppThemeMode.Light => 1, AppThemeMode.Dark => 2, _ => 0 };
+        ThemeService.Apply(this, settings.Theme);
         autoUpdates.Checked = settings.CheckForUpdatesAutomatically;
         prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
         installedVersion.Text = $"Version {new UpdateService(settings).DisplayVersion}";
+    }
+
+    private AppThemeMode SelectedTheme => theme.SelectedIndex switch
+    {
+        1 => AppThemeMode.Light,
+        2 => AppThemeMode.Dark,
+        _ => AppThemeMode.Automatic
+    };
+
+    protected override void OnShown(EventArgs e)
+    {
+        base.OnShown(e);
+        ThemeService.Apply(this, _settings.Theme);
     }
 
     private void saveButton_Click(object? sender, EventArgs e)
@@ -35,6 +51,7 @@ public sealed partial class SettingsForm : Form
         _settings.RecursiveImport = recursive.Checked;
         _settings.ThumbnailDiskCache = diskCache.Checked;
         _settings.MapTileUrl = mapTiles.Text.Trim();
+        _settings.Theme = SelectedTheme;
         _settings.CheckForUpdatesAutomatically = autoUpdates.Checked;
         _settings.IncludePrereleaseUpdates = prereleaseUpdates.Checked;
         _settings.Save();

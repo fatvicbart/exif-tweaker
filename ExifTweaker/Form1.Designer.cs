@@ -32,7 +32,6 @@ namespace ExifTweaker
             DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(Form1));
-            bChange = new Button();
             bOpen = new Button();
             main = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
@@ -40,10 +39,8 @@ namespace ExifTweaker
             tableLayoutPanel3 = new TableLayoutPanel();
             dateTimePicker1 = new DateTimePicker();
             tGPS = new TextBox();
-            tName = new TextBox();
             splitContainer1 = new SplitContainer();
             dgv = new DataGridView();
-            selectedColumn = new DataGridViewCheckBoxColumn();
             thumbnailColumn = new DataGridViewImageColumn();
             fileNameColumn = new DataGridViewTextBoxColumn();
             dateColumn = new DataGridViewTextBoxColumn();
@@ -102,17 +99,7 @@ namespace ExifTweaker
             commands.SuspendLayout();
             SuspendLayout();
             // 
-            // bChange
             // 
-            bChange.Dock = DockStyle.Fill;
-            bChange.Location = new Point(0, 60);
-            bChange.Margin = new Padding(0);
-            bChange.Name = "bChange";
-            bChange.Size = new Size(93, 32);
-            bChange.TabIndex = 0;
-            bChange.Text = "CHANGE!";
-            bChange.UseVisualStyleBackColor = true;
-            bChange.Click += button1_Click;
             // 
             // bOpen
             // 
@@ -124,7 +111,7 @@ namespace ExifTweaker
             bOpen.TabIndex = 0;
             bOpen.Text = "OPEN...";
             bOpen.UseVisualStyleBackColor = true;
-            bOpen.Click += button2_Click;
+            bOpen.Click += PrepareDateForSelection;
             // 
             // main
             // 
@@ -139,7 +126,7 @@ namespace ExifTweaker
             main.Name = "main";
             main.RowCount = 3;
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
             main.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
             main.Size = new Size(623, 336);
             main.TabIndex = 3;
@@ -147,22 +134,19 @@ namespace ExifTweaker
             // tableLayoutPanel2
             // 
             tableLayoutPanel2.ColumnCount = 2;
-            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 93F));
             tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tableLayoutPanel2.Controls.Add(bGPS, 0, 1);
-            tableLayoutPanel2.Controls.Add(tableLayoutPanel3, 1, 0);
-            tableLayoutPanel2.Controls.Add(bOpen, 0, 0);
-            tableLayoutPanel2.Controls.Add(bChange, 0, 2);
-            tableLayoutPanel2.Controls.Add(tGPS, 1, 1);
-            tableLayoutPanel2.Controls.Add(tName, 1, 2);
+            tableLayoutPanel2.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 260F));
+            tableLayoutPanel2.Controls.Add(bGPS, 1, 1);
+            tableLayoutPanel2.Controls.Add(tableLayoutPanel3, 0, 0);
+            tableLayoutPanel2.Controls.Add(bOpen, 1, 0);
+            tableLayoutPanel2.Controls.Add(tGPS, 0, 1);
             tableLayoutPanel2.Dock = DockStyle.Fill;
             tableLayoutPanel2.Location = new Point(0, 221);
             tableLayoutPanel2.Margin = new Padding(0);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
-            tableLayoutPanel2.RowCount = 3;
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33333F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33333F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 33.33333F));
+            tableLayoutPanel2.RowCount = 2;
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
             tableLayoutPanel2.Size = new Size(623, 92);
             tableLayoutPanel2.TabIndex = 3;
             // 
@@ -176,7 +160,7 @@ namespace ExifTweaker
             bGPS.TabIndex = 7;
             bGPS.Text = " FIND GPS";
             bGPS.UseVisualStyleBackColor = true;
-            bGPS.Click += bGPS_Click;
+            bGPS.Click += PrepareGpsForSelection;
             // 
             // tableLayoutPanel3
             // 
@@ -213,15 +197,7 @@ namespace ExifTweaker
             tGPS.Size = new Size(522, 23);
             tGPS.TabIndex = 5;
             // 
-            // tName
             // 
-            tName.Dock = DockStyle.Fill;
-            tName.Location = new Point(97, 63);
-            tName.Margin = new Padding(4, 3, 4, 3);
-            tName.Name = "tName";
-            tName.ReadOnly = true;
-            tName.Size = new Size(522, 23);
-            tName.TabIndex = 12;
             // 
             // splitContainer1
             // 
@@ -250,6 +226,7 @@ namespace ExifTweaker
             dgv.AllowUserToResizeColumns = false;
             dgv.AllowUserToResizeRows = false;
             dgv.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells;
+            dgv.AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCellsExceptHeaders;
             dgv.BackgroundColor = SystemColors.ControlLight;
             dgv.BorderStyle = BorderStyle.Fixed3D;
             dgv.AutoGenerateColumns = false;
@@ -262,15 +239,10 @@ namespace ExifTweaker
             dataGridViewCellStyle1.WrapMode = DataGridViewTriState.True;
             dgv.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
-            dgv.Columns.AddRange(new DataGridViewColumn[] { selectedColumn, thumbnailColumn, fileNameColumn, dateColumn, timezoneColumn, locationColumn, deviceColumn, dimensionsColumn, latitudeColumn, longitudeColumn, altitudeColumn, statusColumn, detailsColumn });
+            dgv.Columns.AddRange(new DataGridViewColumn[] { thumbnailColumn, fileNameColumn, dateColumn, timezoneColumn, locationColumn, deviceColumn, dimensionsColumn, latitudeColumn, longitudeColumn, altitudeColumn, statusColumn, detailsColumn });
             dgv.RowTemplate.Height = 72;
             // 
-            // selectedColumn
             // 
-            selectedColumn.DataPropertyName = "IsSelected";
-            selectedColumn.HeaderText = "✓";
-            selectedColumn.Name = "selectedColumn";
-            selectedColumn.Width = 28;
             // 
             // thumbnailColumn
             // 
@@ -348,6 +320,7 @@ namespace ExifTweaker
             detailsColumn.HeaderText = "Détails";
             detailsColumn.MinimumWidth = 220;
             detailsColumn.Name = "detailsColumn";
+            detailsColumn.DefaultCellStyle = new DataGridViewCellStyle { WrapMode = DataGridViewTriState.True };
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle2.BackColor = SystemColors.Window;
             dataGridViewCellStyle2.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -599,7 +572,6 @@ namespace ExifTweaker
 
         #endregion
 
-        private System.Windows.Forms.Button bChange;
         private System.Windows.Forms.Button bOpen;
         private System.Windows.Forms.TableLayoutPanel main;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
@@ -607,9 +579,7 @@ namespace ExifTweaker
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
         private System.Windows.Forms.DateTimePicker dateTimePicker1;
         private System.Windows.Forms.TextBox tGPS;
-        private System.Windows.Forms.TextBox tName;
         private System.Windows.Forms.DataGridView dgv;
-        private System.Windows.Forms.DataGridViewCheckBoxColumn selectedColumn;
         private System.Windows.Forms.DataGridViewImageColumn thumbnailColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn fileNameColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn dateColumn;
