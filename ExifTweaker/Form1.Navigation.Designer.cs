@@ -22,6 +22,7 @@ partial class Form1
     private ToolStripMenuItem previewMenuItem = null!;
     private ToolStripMenuItem informationMenuItem = null!;
     private ToolStripMenuItem quickActionsMenuItem = null!;
+    private ToolStripMenuItem quickActionsToggleItem = null!;
     private ToolStripMenuItem applyMenuItem = null!;
     private ToolStripMenuItem applySelectedMenuItem = null!;
     private ToolStripMenuItem cancelMenuItem = null!;
@@ -73,6 +74,9 @@ partial class Form1
         informationMenuItem = MenuItem("Afficher les &informations", "informationMenuItem");
         quickActionsMenuItem = MenuItem("Afficher la barre d’actions &rapides", "quickActionsMenuItem");
         quickActionsMenuItem.Checked = true;
+        quickActionsToggleItem = MenuItem("Actions rapides : affichées", "quickActionsToggleItem");
+        quickActionsToggleItem.Alignment = ToolStripItemAlignment.Right;
+        quickActionsToggleItem.Checked = true;
         applyMenuItem = MenuItem("Vérifier et appliquer", "applyMenuItem");
         applySelectedMenuItem = MenuItem("Vérifier et appliquer la sélection", "applySelectedMenuItem");
         cancelMenuItem = MenuItem("Interrompre l’opération en cours", "cancelMenuItem");
@@ -124,7 +128,7 @@ partial class Form1
         });
         navigationMenu.Items.AddRange(new ToolStripItem[]
         {
-            fileMenu, editMenu, dateMenu, locationMenu, viewMenu, actionsMenu, helpMenu
+            fileMenu, editMenu, dateMenu, locationMenu, viewMenu, actionsMenu, helpMenu, quickActionsToggleItem
         });
 
         BuildQuickToolbar();

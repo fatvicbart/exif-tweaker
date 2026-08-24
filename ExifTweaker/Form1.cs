@@ -49,6 +49,10 @@ public partial class Form1 : Form
     private readonly ConcurrentDictionary<string, (DateTime LastWriteUtc, IReadOnlyList<ExifTagInfo> Tags)> _informationCache = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _informationCts;
     private PhotoItem? _activeItem;
+    private bool _sessionRefreshQueued;
+    private bool _sessionRefreshPending;
+    private bool _restoringGridSelection;
+    private (string FilePath, DateTime LastWriteUtc)? _informationRequest;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
         .Select(row => row.DataBoundItem as PhotoItem)
@@ -89,10 +93,34 @@ public partial class Form1 : Form
             if (_settings.CheckForUpdatesAutomatically)
                 await _updates.CheckAndPromptAsync(this, manual: false);
         };
-        _session.PropertyChanged += (_, _) => { UpdateSessionCaption(); RefreshFilter(); };
+        _session.PropertyChanged += (_, _) => QueueSessionRefresh();
+
         RefreshFilter();
         UpdateSessionCaption();
     }
+    private void QueueSessionRefresh()
+    {
+        if (IsDisposed) return;
+        if (InvokeRequired)
+        {
+            BeginInvoke(QueueSessionRefresh);
+            return;
+        }
+        _sessionRefreshPending = true;
+        if (_isBusy || _sessionRefreshQueued || !IsHandleCreated) return;
+        _sessionRefreshQueued = true;
+        BeginInvoke(ProcessSessionRefresh);
+    }
+
+    private void ProcessSessionRefresh()
+    {
+        _sessionRefreshQueued = false;
+        if (IsDisposed || _isBusy || !_sessionRefreshPending) return;
+        _sessionRefreshPending = false;
+        UpdateSessionCaption();
+        RefreshFilter();
+    }
+
 
     private void PrepareDateForSelection(object? sender, EventArgs e)
     {
@@ -206,6 +234,7 @@ public partial class Form1 : Form
             }
             _session.NotifyChanged();
             QueueLocationResolution(succeeded);
+            _informationRequest = null;
             using var report = new ApplyReportForm(result);
             ThemeService.Apply(report);
             report.ShowDialog(this);
@@ -541,6 +570,7 @@ public partial class Form1 : Form
         previewMenuItem.Click += (_, _) => ShowPreview();
         informationMenuItem.Click += async (_, _) => await ShowInformationAsync();
         quickActionsMenuItem.Click += (_, _) => ToggleQuickActions();
+        quickActionsToggleItem.Click += (_, _) => ToggleQuickActions();
         Command("allFilterCommand").Click += (_, _) => ApplyFilter("Tous", _ => true);
         Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter("Modifiés", item => item.HasPendingChanges);
         Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
@@ -560,7 +590,7 @@ public partial class Form1 : Form
         verifyExifToolMenuItem.Click += async (_, _) => await VerifyExifToolAsync();
         checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync();
         aboutMenuItem.Click += (_, _) => ShowAbout();
-        dgv.SelectionChanged += async (_, _) => await ActiveSelectionChangedAsync();
+        dgv.SelectionChanged += async (_, _) => { if (!_restoringGridSelection) await ActiveSelectionChangedAsync(); };
     }
 
     private async Task ActiveSelectionChangedAsync()
@@ -571,6 +601,7 @@ public partial class Form1 : Form
         {
             _informationCts?.Cancel();
             _informationView.ShowEmpty();
+            _informationRequest = null;
             return;
         }
         DisplayActiveMetadata(_activeItem);
@@ -581,6 +612,8 @@ public partial class Form1 : Form
     {
         commands.Visible = !commands.Visible;
         quickActionsMenuItem.Checked = commands.Visible;
+        quickActionsToggleItem.Checked = commands.Visible;
+        quickActionsToggleItem.Text = commands.Visible ? "Actions rapides : affichées" : "Actions rapides : masquées";
     }
 
     private async Task CheckForUpdatesAsync()
@@ -600,6 +633,10 @@ public partial class Form1 : Form
     private void RefreshFilter()
     {
         var desired = _session.Media.Where(_activeFilter).ToList();
+        var selectedBefore = SelectedItems.ToHashSet();
+        var currentBefore = dgv.CurrentRow?.DataBoundItem as PhotoItem;
+        var currentColumn = dgv.CurrentCell?.ColumnIndex ?? 0;
+        _restoringGridSelection = true;
         _view.RaiseListChangedEvents = false;
         try
         {
@@ -615,8 +652,21 @@ public partial class Form1 : Form
         }
         finally { _view.RaiseListChangedEvents = true; }
         _bindingSource.ResetBindings(false);
+        dgv.ClearSelection();
+        foreach (DataGridViewRow row in dgv.Rows)
+            if (row.DataBoundItem is PhotoItem item && selectedBefore.Contains(item)) row.Selected = true;
+        var currentRow = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(row => ReferenceEquals(row.DataBoundItem, currentBefore))
+            ?? dgv.SelectedRows.Cast<DataGridViewRow>().FirstOrDefault()
+            ?? dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault();
+        if (currentRow is not null)
+            dgv.CurrentCell = currentRow.Cells[Math.Clamp(currentColumn, 0, dgv.Columns.Count - 1)];
+        _restoringGridSelection = false;
         if (filterQuickCommand is not null) filterQuickCommand.Text = $"Filtre : {_activeFilterName} ({_view.Count}/{_session.Media.Count})";
         UpdateFilterChecks();
+        UpdateCommandState();
+        var currentItem = dgv.CurrentRow?.DataBoundItem as PhotoItem;
+        if (!ReferenceEquals(currentItem, _activeItem)) _ = ActiveSelectionChangedAsync();
+        else if (_informationView.Visible && currentItem is not null) _ = LoadInformationAsync(currentItem);
     }
 
     private void OpenDateEditor()
@@ -646,6 +696,8 @@ public partial class Form1 : Form
     {
         var showMap = !_map.Visible;
         _informationView.Visible = false;
+        _informationCts?.Cancel();
+        _informationRequest = null;
         _map.Visible = showMap;
         if (showMap) _map.BringToFront();
         else picBox.BringToFront();
@@ -657,6 +709,8 @@ public partial class Form1 : Form
     {
         _map.Visible = false;
         _informationView.Visible = false;
+        _informationCts?.Cancel();
+        _informationRequest = null;
         picBox.BringToFront();
         UpdateMapChecks();
     }
@@ -674,16 +728,21 @@ public partial class Form1 : Form
 
     private async Task LoadInformationAsync(PhotoItem item)
     {
+        var lastWriteUtc = File.GetLastWriteTimeUtc(item.FilePath);
+        if (_informationRequest is { } request &&
+            request.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase) &&
+            request.LastWriteUtc == lastWriteUtc) return;
+
+        _informationRequest = (item.FilePath, lastWriteUtc);
         _informationCts?.Cancel();
         _informationCts?.Dispose();
         var cts = new CancellationTokenSource();
         _informationCts = cts;
-        _informationView.ShowLoading(item.FilePath);
         try
         {
-            var lastWriteUtc = File.GetLastWriteTimeUtc(item.FilePath);
             if (!_informationCache.TryGetValue(item.FilePath, out var cached) || cached.LastWriteUtc != lastWriteUtc)
             {
+                _informationView.ShowLoading(item.FilePath);
                 var tags = await _exifTool.ReadAllMetadataAsync(item.FilePath, cts.Token);
                 cached = (lastWriteUtc, tags);
                 _informationCache[item.FilePath] = cached;
@@ -691,9 +750,13 @@ public partial class Form1 : Form
             if (cts.IsCancellationRequested || !ReferenceEquals(_activeItem, item) || !_informationView.Visible) return;
             _informationView.ShowTags(item.FilePath, cached.Tags);
         }
-        catch (OperationCanceledException) { }
+        catch (OperationCanceledException)
+        {
+            if (ReferenceEquals(_informationCts, cts)) _informationRequest = null;
+        }
         catch (Exception ex)
         {
+            if (ReferenceEquals(_informationCts, cts)) _informationRequest = null;
             AppLogger.Error($"Full metadata read failed for {item.FilePath}.", ex);
             if (!cts.IsCancellationRequested && ReferenceEquals(_activeItem, item))
                 _informationView.ShowError(item.FilePath, "Impossible de lire les métadonnées — consultez les journaux.");
@@ -900,6 +963,7 @@ public partial class Form1 : Form
                 _informationCache.TryRemove(item.FilePath, out _);
             }
             _history.Forget(selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))));
+            _informationRequest = null;
             _session.NotifyChanged();
             QueueLocationResolution(selected);
             using var report = new ApplyReportForm(result) { Text = "Restore report" };
@@ -973,7 +1037,7 @@ public partial class Form1 : Form
         var selectedPending = selected.Count(item => item.HasPendingChanges);
         var canEditSelection = !_isBusy && hasSelection;
         var applyText = $"Vérifier et appliquer tout ({pending})";
-        applyAllButton.Text = applyText;
+        applyAllButton.Text = applyText.ToUpperInvariant();
         applyMenuItem.Text = applyText;
         applySelectedMenuItem.Text = $"Vérifier et appliquer la sélection ({selectedPending})";
         resetAllCommand.Text = $"Restaurer tout ({pending})";
@@ -1134,6 +1198,7 @@ public partial class Form1 : Form
         operationStatus.Text = busy ? "Working… (Esc to cancel)" : "Ready";
         if (busy) pgb.Value = 0;
         UpdateCommandState();
+        if (!busy && _sessionRefreshPending) QueueSessionRefresh();
     }
 
 }
