@@ -4,7 +4,7 @@ partial class DateEditorForm
 {
     private System.ComponentModel.IContainer components = null;
     private ComboBox mode;
-    private DateTimePicker dateValue;
+    private ExifTweaker.Controls.ThemedDateTimeInput dateValue;
     private FlowLayoutPanel shiftPanel;
     private NumericUpDown yearsValue;
     private NumericUpDown monthsValue;
@@ -28,7 +28,7 @@ partial class DateEditorForm
     private void InitializeComponent()
     {
         mode = new ComboBox();
-        dateValue = new DateTimePicker();
+        dateValue = new ExifTweaker.Controls.ThemedDateTimeInput();
         shiftPanel = new FlowLayoutPanel();
         yearsValue = Number(-99, 99, "Years");
         monthsValue = Number(-120, 120, "Months");

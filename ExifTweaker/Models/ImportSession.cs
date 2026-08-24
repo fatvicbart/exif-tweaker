@@ -64,13 +64,30 @@ public sealed class ImportSession : INotifyPropertyChanged
             Media.RaiseListChangedEvents = true;
             Media.ResetBindings();
         }
-        OnPropertyChanged(string.Empty);
     }
 
-    public void Remove(PhotoItem item)
+    public void Remove(PhotoItem item) => Media.Remove(item);
+
+    public void RemoveRange(IEnumerable<PhotoItem> items)
     {
-        Media.Remove(item);
-        OnPropertyChanged(string.Empty);
+        var targets = items.ToHashSet();
+        if (targets.Count == 0) return;
+        var changed = false;
+        Media.RaiseListChangedEvents = false;
+        try
+        {
+            for (var index = Media.Count - 1; index >= 0; index--)
+            {
+                if (!targets.Contains(Media[index])) continue;
+                Media.RemoveAt(index);
+                changed = true;
+            }
+        }
+        finally
+        {
+            Media.RaiseListChangedEvents = true;
+            if (changed) Media.ResetBindings();
+        }
     }
 
     public void NotifyChanged() => OnPropertyChanged(string.Empty);

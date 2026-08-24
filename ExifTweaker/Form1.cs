@@ -392,7 +392,7 @@ public partial class Form1 : Form
     private void dgv_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.KeyCode != Keys.Delete) return;
-        foreach (var item in SelectedItems) _session.Remove(item);
+        RemoveSelectedFromSession();
         e.Handled = true;
     }
 
@@ -417,9 +417,13 @@ public partial class Form1 : Form
         }
     }
 
-    private async void dgv_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
+    private void dgv_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.RowIndex < 0 || e.ColumnIndex != thumbnailColumn.Index || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
+        if (e.RowIndex < 0 || e.RowIndex >= _bindingSource.Count || e.ColumnIndex != thumbnailColumn.Index) return;
+        PhotoItem? item;
+        try { item = _bindingSource[e.RowIndex] as PhotoItem; }
+        catch (ArgumentOutOfRangeException) { return; }
+        if (item is null) return;
         if (_gridThumbnails.TryGetValue(item.FilePath, out var cached))
         {
             e.Value = cached;
@@ -427,6 +431,11 @@ public partial class Form1 : Form
             return;
         }
         if (!_thumbnailLoads.TryAdd(item.FilePath, 0)) return;
+        _ = LoadGridThumbnailAsync(item);
+    }
+
+    private async Task LoadGridThumbnailAsync(PhotoItem item)
+    {
         try
         {
             var image = await _thumbnails.GetAsync(item.FilePath, 96, _operationCts?.Token ?? CancellationToken.None);
@@ -441,6 +450,10 @@ public partial class Form1 : Form
             if (row is not null) dgv.InvalidateRow(row.Index);
         }
         catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Thumbnail loading failed for {item.FilePath}.", ex);
+        }
         finally { _thumbnailLoads.TryRemove(item.FilePath, out _); }
     }
 
@@ -491,8 +504,9 @@ public partial class Form1 : Form
         };
         tGPS.TextChanged += (_, _) => ScheduleGpsSearch();
         tGPS.KeyDown += GpsSearchKeyDown;
-        Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        applyAllButton.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
+        applySelectedMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(SelectedItems);
         openFilesMenuItem.Click += button2_Click;
         openFilesQuickItem.Click += button2_Click;
         Command("openFolderCommand").Click += async (_, _) => await OpenFolderAsync();
@@ -586,15 +600,20 @@ public partial class Form1 : Form
     private void RefreshFilter()
     {
         var desired = _session.Media.Where(_activeFilter).ToList();
-        for (var index = _view.Count - 1; index >= 0; index--)
-            if (!desired.Contains(_view[index])) _view.RemoveAt(index);
-        for (var index = 0; index < desired.Count; index++)
+        _view.RaiseListChangedEvents = false;
+        try
         {
-            if (index < _view.Count && ReferenceEquals(_view[index], desired[index])) continue;
-            var existing = _view.IndexOf(desired[index]);
-            if (existing >= 0) _view.RemoveAt(existing);
-            _view.Insert(Math.Min(index, _view.Count), desired[index]);
+            for (var index = _view.Count - 1; index >= 0; index--)
+                if (!desired.Contains(_view[index])) _view.RemoveAt(index);
+            for (var index = 0; index < desired.Count; index++)
+            {
+                if (index < _view.Count && ReferenceEquals(_view[index], desired[index])) continue;
+                var existing = _view.IndexOf(desired[index]);
+                if (existing >= 0) _view.RemoveAt(existing);
+                _view.Insert(Math.Min(index, _view.Count), desired[index]);
+            }
         }
+        finally { _view.RaiseListChangedEvents = true; }
         _bindingSource.ResetBindings(false);
         if (filterQuickCommand is not null) filterQuickCommand.Text = $"Filtre : {_activeFilterName} ({_view.Count}/{_session.Media.Count})";
         UpdateFilterChecks();
@@ -620,7 +639,7 @@ public partial class Form1 : Form
         ThemeService.Apply(_gpsSuggestionsPopup);
         try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
         catch (Exception ex) { AppLogger.Error("Map reconfiguration failed.", ex); }
-        ThemedMessageBox.Show("Settings saved. Restart the application after changing the ExifTool path.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        ThemedMessageBox.Show("Paramètres enregistrés.\n\nRedémarrez l’application uniquement si le chemin d’ExifTool a été modifié.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ToggleMap()
@@ -870,7 +889,7 @@ public partial class Form1 : Form
     private async Task RestoreSelectedAsync()
     {
         var selected = SelectedItems;
-        if (selected.Count == 0 || ThemedMessageBox.Show("Restore selected files from their ExifTool backups?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (selected.Count == 0 || ThemedMessageBox.Show("Les fichiers sélectionnés vont être restaurés depuis leurs sauvegardes ExifTool.\n\nVoulez-vous continuer ?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         SetBusy(true);
         try
         {
@@ -920,7 +939,9 @@ public partial class Form1 : Form
 
     private void RemoveSelectedFromSession()
     {
-        foreach (var item in SelectedItems) _session.Remove(item);
+        var selected = SelectedItems;
+        _session.RemoveRange(selected);
+        if (_map.Visible) RefreshMapMarkers();
     }
 
     private void UpdateFilterChecks()
@@ -947,20 +968,26 @@ public partial class Form1 : Form
         if (applyMenuItem is null) return;
         var pending = _session.PendingChangeCount;
         var hasMedia = _session.Media.Count > 0;
-        var hasSelection = SelectedItems.Count > 0;
+        var selected = SelectedItems;
+        var hasSelection = selected.Count > 0;
+        var selectedPending = selected.Count(item => item.HasPendingChanges);
         var canEditSelection = !_isBusy && hasSelection;
         var applyText = $"Vérifier et appliquer tout ({pending})";
-        applyCommand.Text = applyText;
+        applyAllButton.Text = applyText;
         applyMenuItem.Text = applyText;
-        applyCommand.Enabled = !_isBusy && pending > 0;
+        applySelectedMenuItem.Text = $"Vérifier et appliquer la sélection ({selectedPending})";
+        resetAllCommand.Text = $"Restaurer tout ({pending})";
+        resetSelectedCommand.Text = $"Restaurer la sélection ({selectedPending})";
+        applyAllButton.Enabled = !_isBusy && pending > 0;
         applyMenuItem.Enabled = !_isBusy && pending > 0;
+        applySelectedMenuItem.Enabled = !_isBusy && selectedPending > 0;
         undoCommand.Enabled = undoMenuItem.Enabled = !_isBusy && _history.CanUndo;
         redoCommand.Enabled = redoMenuItem.Enabled = !_isBusy && _history.CanRedo;
         cancelCommand.Enabled = cancelMenuItem.Enabled = _isBusy;
 
         bOpen.Enabled = canEditSelection;
         dateEditorCommand.Enabled = dateQuickCommand.Enabled = canEditSelection;
-        resetSelectedCommand.Enabled = canEditSelection;
+        resetSelectedCommand.Enabled = !_isBusy && selectedPending > 0;
         resetAllCommand.Enabled = !_isBusy && pending > 0;
         minusHourCommand.Enabled = plusHourCommand.Enabled = canEditSelection;
         minusMinuteCommand.Enabled = plusMinuteCommand.Enabled = canEditSelection;
@@ -1049,7 +1076,7 @@ public partial class Form1 : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (e.CloseReason == CloseReason.UserClosing && _session.HasPendingChanges &&
-            ThemedMessageBox.Show("Pending metadata changes have not been applied. Close anyway?", "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            ThemedMessageBox.Show("Des modifications préparées n’ont pas été appliquées.\n\nVoulez-vous vraiment fermer l’application ?", "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
         {
             e.Cancel = true;
             return;

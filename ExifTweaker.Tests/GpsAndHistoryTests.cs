@@ -168,4 +168,19 @@ public sealed class GpsAndHistoryTests
         StringAssert.Contains(item.Details, Environment.NewLine);
         Assert.AreEqual(2, item.Details.Split(Environment.NewLine).Length);
     }
+    [TestMethod]
+    public void RemoveRangeRaisesOneSessionNotification()
+    {
+        var first = new PhotoItem("first.jpg");
+        var second = new PhotoItem("second.jpg");
+        var session = new ImportSession();
+        session.AddRange(new[] { first, second });
+        var notifications = 0;
+        session.PropertyChanged += (_, _) => notifications++;
+
+        session.RemoveRange(new[] { first, second });
+
+        Assert.AreEqual(0, session.Media.Count);
+        Assert.AreEqual(1, notifications);
+    }
 }

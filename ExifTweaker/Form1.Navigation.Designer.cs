@@ -23,6 +23,7 @@ partial class Form1
     private ToolStripMenuItem informationMenuItem = null!;
     private ToolStripMenuItem quickActionsMenuItem = null!;
     private ToolStripMenuItem applyMenuItem = null!;
+    private ToolStripMenuItem applySelectedMenuItem = null!;
     private ToolStripMenuItem cancelMenuItem = null!;
     private ToolStripMenuItem guideMenuItem = null!;
     private ToolStripMenuItem logsMenuItem = null!;
@@ -73,7 +74,8 @@ partial class Form1
         quickActionsMenuItem = MenuItem("Afficher la barre d’actions &rapides", "quickActionsMenuItem");
         quickActionsMenuItem.Checked = true;
         applyMenuItem = MenuItem("Vérifier et appliquer", "applyMenuItem");
-        cancelMenuItem = MenuItem("Annuler l’opération", "cancelMenuItem");
+        applySelectedMenuItem = MenuItem("Vérifier et appliquer la sélection", "applySelectedMenuItem");
+        cancelMenuItem = MenuItem("Interrompre l’opération en cours", "cancelMenuItem");
         guideMenuItem = MenuItem("&Guide utilisateur", "guideMenuItem", Keys.F1);
         logsMenuItem = MenuItem("Afficher les &journaux…", "logsMenuItem");
         verifyExifToolMenuItem = MenuItem("&Vérifier ExifTool", "verifyExifToolMenuItem");
@@ -90,8 +92,7 @@ partial class Form1
         });
         editMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
-            undoMenuItem, redoMenuItem, new ToolStripSeparator(),
-            resetSelectedCommand, resetAllCommand, new ToolStripSeparator(), selectAllMenuItem
+            undoMenuItem, redoMenuItem, new ToolStripSeparator(), selectAllMenuItem
         });
         dateMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
@@ -112,7 +113,11 @@ partial class Form1
         {
             previewMenuItem, mapCommand, informationMenuItem, new ToolStripSeparator(), quickActionsMenuItem, new ToolStripSeparator(), filterMenu
         });
-        actionsMenu.DropDownItems.AddRange(new ToolStripItem[] { applyMenuItem, cancelMenuItem });
+        actionsMenu.DropDownItems.AddRange(new ToolStripItem[]
+        {
+            applyMenuItem, applySelectedMenuItem, new ToolStripSeparator(),
+            resetAllCommand, resetSelectedCommand, new ToolStripSeparator(), cancelMenuItem
+        });
         helpMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
             guideMenuItem, logsMenuItem, verifyExifToolMenuItem, checkUpdatesMenuItem, new ToolStripSeparator(), aboutMenuItem
@@ -165,7 +170,7 @@ partial class Form1
         {
             openQuickCommand, dateQuickCommand, locationQuickCommand, mapQuickCommand,
             new ToolStripSeparator(), undoCommand, redoCommand, filterQuickCommand,
-            new ToolStripSeparator(), applyCommand, cancelCommand, operationStatus
+            new ToolStripSeparator(), cancelCommand, operationStatus
         });
         commands.Padding = new Padding(4, 2, 4, 2);
         commands.AutoSize = true;
@@ -176,8 +181,8 @@ partial class Form1
         SetText(openFolderCommand, "Ouvrir un dossier…");
         SetText(settingsCommand, "Paramètres…");
         SetText(restoreBackupCommand, "Restaurer une sauvegarde…");
-        SetText(resetSelectedCommand, "Réinitialiser la sélection");
-        SetText(resetAllCommand, "Réinitialiser toutes les modifications");
+        SetText(resetSelectedCommand, "Restaurer la sélection");
+        SetText(resetAllCommand, "Restaurer tout");
         SetText(dateEditorCommand, "Ouvrir l’éditeur complet…");
         SetText(minusHourCommand, "Reculer d’une heure");
         SetText(plusHourCommand, "Avancer d’une heure");
@@ -195,8 +200,7 @@ partial class Form1
         SetText(errorsFilterCommand, "Erreurs");
         SetText(undoCommand, "Annuler");
         SetText(redoCommand, "Rétablir");
-        SetText(applyCommand, "Vérifier et appliquer");
-        SetText(cancelCommand, "Annuler l’opération");
+        SetText(cancelCommand, "Interrompre l’opération en cours");
     }
 
     private static ToolStripMenuItem TopMenu(string text, string name) => new(text) { Name = name };

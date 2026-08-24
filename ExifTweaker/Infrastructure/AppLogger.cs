@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace ExifTweaker.Infrastructure;
 
-public sealed record LogEntry(DateTimeOffset Timestamp, string Level, string Message, string? ExceptionType, string? ExceptionText, string RawJson, bool IsValid = true);
+public sealed record LogEntry(DateTimeOffset Timestamp, string Level, string Message, string? ExceptionType, string? ExceptionText, string RawJson, bool IsValid = true, long Sequence = 0);
 
 public static class AppLogger
 {
@@ -20,12 +20,14 @@ public static class AppLogger
         var entries = new Queue<LogEntry>(maximum);
         await using var stream = new FileStream(LogPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 4096, FileOptions.Asynchronous);
         using var reader = new StreamReader(stream);
+        long sequence = 0;
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
+            sequence++;
             cancellationToken.ThrowIfCancellationRequested();
             if (string.IsNullOrWhiteSpace(line)) continue;
             if (entries.Count == maximum) entries.Dequeue();
-            entries.Enqueue(ParseLine(line));
+            entries.Enqueue(ParseLine(line) with { Sequence = sequence });
         }
         return entries.Reverse().ToList();
     }

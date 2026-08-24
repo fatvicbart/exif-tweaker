@@ -36,8 +36,9 @@ namespace ExifTweaker
             main = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
             bGPS = new Button();
+            applyAllButton = new Button();
             tableLayoutPanel3 = new TableLayoutPanel();
-            dateTimePicker1 = new DateTimePicker();
+            dateTimePicker1 = new ExifTweaker.Controls.ThemedDateTimeInput();
             tGPS = new TextBox();
             splitContainer1 = new SplitContainer();
             dgv = new DataGridView();
@@ -57,7 +58,6 @@ namespace ExifTweaker
             pgb = new ProgressBar();
             mapControl = new ExifTweaker.Controls.MapControl();
             commands = new ToolStrip();
-            applyCommand = new ToolStripButton();
             openFolderCommand = new ToolStripMenuItem();
             dateEditorCommand = new ToolStripMenuItem();
             settingsCommand = new ToolStripMenuItem();
@@ -119,15 +119,13 @@ namespace ExifTweaker
             main.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
             main.Controls.Add(tableLayoutPanel2, 0, 1);
             main.Controls.Add(splitContainer1, 0, 0);
-            main.Controls.Add(pgb, 0, 2);
             main.Dock = DockStyle.Fill;
             main.Location = new Point(0, 0);
             main.Margin = new Padding(4, 3, 4, 3);
             main.Name = "main";
-            main.RowCount = 3;
+            main.RowCount = 2;
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 23F));
+            main.RowStyles.Add(new RowStyle(SizeType.Absolute, 92F));
             main.Size = new Size(623, 336);
             main.TabIndex = 3;
             // 
@@ -140,13 +138,16 @@ namespace ExifTweaker
             tableLayoutPanel2.Controls.Add(tableLayoutPanel3, 0, 0);
             tableLayoutPanel2.Controls.Add(bOpen, 1, 0);
             tableLayoutPanel2.Controls.Add(tGPS, 0, 1);
+            tableLayoutPanel2.Controls.Add(pgb, 0, 2);
+            tableLayoutPanel2.Controls.Add(applyAllButton, 1, 2);
             tableLayoutPanel2.Dock = DockStyle.Fill;
             tableLayoutPanel2.Location = new Point(0, 221);
             tableLayoutPanel2.Margin = new Padding(0);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
-            tableLayoutPanel2.RowCount = 2;
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 50F));
+            tableLayoutPanel2.RowCount = 3;
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 30F));
             tableLayoutPanel2.Size = new Size(623, 92);
             tableLayoutPanel2.TabIndex = 3;
             // 
@@ -161,7 +162,16 @@ namespace ExifTweaker
             bGPS.Text = " FIND GPS";
             bGPS.UseVisualStyleBackColor = true;
             bGPS.Click += PrepareGpsForSelection;
-            // 
+            //
+            // applyAllButton
+            //
+            applyAllButton.Dock = DockStyle.Fill;
+            applyAllButton.Margin = new Padding(0);
+            applyAllButton.Name = "applyAllButton";
+            applyAllButton.TabIndex = 8;
+            applyAllButton.Text = "VÉRIFIER ET APPLIQUER TOUT";
+            applyAllButton.UseVisualStyleBackColor = true;
+            //
             // tableLayoutPanel3
             // 
             tableLayoutPanel3.ColumnCount = 1;
@@ -379,18 +389,13 @@ namespace ExifTweaker
             // 
             commands.Dock = DockStyle.Top;
             commands.GripStyle = ToolStripGripStyle.Hidden;
-            commands.Items.AddRange(new ToolStripItem[] { applyCommand, openFolderCommand, dateEditorCommand, settingsCommand, cancelCommand, operationStatus, undoCommand, redoCommand, commandSeparator1, resetSelectedCommand, resetAllCommand, commandSeparator2, minusHourCommand, plusHourCommand, minusMinuteCommand, plusMinuteCommand, commandSeparator3, removeGpsCommand, copyGpsCommand, pasteGpsCommand, reverseGpsCommand, mapCommand, commandSeparator4, allFilterCommand, modifiedFilterCommand, noGpsFilterCommand, noDateFilterCommand, errorsFilterCommand, commandSeparator5, restoreBackupCommand });
+            commands.Items.AddRange(new ToolStripItem[] { openFolderCommand, dateEditorCommand, settingsCommand, cancelCommand, operationStatus, undoCommand, redoCommand, commandSeparator1, resetSelectedCommand, resetAllCommand, commandSeparator2, minusHourCommand, plusHourCommand, minusMinuteCommand, plusMinuteCommand, commandSeparator3, removeGpsCommand, copyGpsCommand, pasteGpsCommand, reverseGpsCommand, mapCommand, commandSeparator4, allFilterCommand, modifiedFilterCommand, noGpsFilterCommand, noDateFilterCommand, errorsFilterCommand, commandSeparator5, restoreBackupCommand });
             commands.Location = new Point(0, 0);
             commands.Name = "commands";
             commands.Size = new Size(623, 25);
             commands.TabIndex = 4;
             commands.Text = "commands";
             // 
-            // applyCommand
-            // 
-            applyCommand.DisplayStyle = ToolStripItemDisplayStyle.Text;
-            applyCommand.Name = "applyCommand";
-            applyCommand.Text = "Apply";
             // 
             // openFolderCommand
             // 
@@ -576,8 +581,9 @@ namespace ExifTweaker
         private System.Windows.Forms.TableLayoutPanel main;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.Button bGPS;
+        private System.Windows.Forms.Button applyAllButton;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel3;
-        private System.Windows.Forms.DateTimePicker dateTimePicker1;
+        private ExifTweaker.Controls.ThemedDateTimeInput dateTimePicker1;
         private System.Windows.Forms.TextBox tGPS;
         private System.Windows.Forms.DataGridView dgv;
         private System.Windows.Forms.DataGridViewImageColumn thumbnailColumn;
@@ -597,7 +603,6 @@ namespace ExifTweaker
         private System.Windows.Forms.ProgressBar pgb;
         private ExifTweaker.Controls.MapControl mapControl;
         private System.Windows.Forms.ToolStrip commands;
-        private System.Windows.Forms.ToolStripButton applyCommand;
         private System.Windows.Forms.ToolStripMenuItem openFolderCommand;
         private System.Windows.Forms.ToolStripMenuItem dateEditorCommand;
         private System.Windows.Forms.ToolStripMenuItem settingsCommand;

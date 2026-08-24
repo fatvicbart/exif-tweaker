@@ -19,6 +19,7 @@ public sealed class LogViewerForm : Form
     private readonly System.Windows.Forms.Timer _timer = new() { Interval = 2000 };
     private IReadOnlyList<LogEntry> _entries = Array.Empty<LogEntry>();
     private bool _loading;
+    private bool _restoringView;
 
     public LogViewerForm()
     {
@@ -33,7 +34,7 @@ public sealed class LogViewerForm : Form
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Niveau", DataPropertyName = nameof(LogEntry.Level), Width = 90 });
         _grid.Columns.Add(new DataGridViewTextBoxColumn { HeaderText = "Message", DataPropertyName = nameof(LogEntry.Message), AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill });
         _grid.CellFormatting += GridCellFormatting;
-        _grid.SelectionChanged += (_, _) => ShowSelectedEntry();
+        _grid.SelectionChanged += (_, _) => { if (!_restoringView) ShowSelectedEntry(); };
 
         var refresh = new Button { Text = "Actualiser", AutoSize = true };
         var copy = new Button { Text = "Copier", AutoSize = true };
@@ -46,7 +47,8 @@ public sealed class LogViewerForm : Form
 
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, Padding = new Padding(6), WrapContents = false };
         toolbar.Controls.AddRange(new Control[] { _search, _level, _follow, refresh, copy, export, _status });
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, Padding = new Point(16, 5) };
+        tabs.DrawItem += DrawLogTab;
         var detailTab = new TabPage("Détails lisibles");
         var jsonTab = new TabPage("JSON source");
         detailTab.Controls.Add(_details);
@@ -68,25 +70,20 @@ public sealed class LogViewerForm : Form
 
         _search.TextChanged += (_, _) => ApplyFilter();
         _level.SelectedIndexChanged += (_, _) => ApplyFilter();
-        _timer.Tick += async (_, _) => { if (_follow.Checked) await ReloadAsync(keepSelection: true); };
+        _timer.Tick += async (_, _) => { if (_follow.Checked) await ReloadAsync(); };
         Shown += async (_, _) => { ThemeService.Apply(this); await ReloadAsync(); _timer.Start(); };
         FormClosed += (_, _) => { _timer.Stop(); _timer.Dispose(); };
     }
 
-    private async Task ReloadAsync(bool keepSelection = false)
+    private async Task ReloadAsync()
     {
         if (_loading) return;
         _loading = true;
-        var selectedRaw = keepSelection && _grid.CurrentRow?.DataBoundItem is LogEntry selected ? selected.RawJson : null;
+        var viewState = CaptureViewState();
         try
         {
             _entries = await AppLogger.ReadRecentAsync();
-            ApplyFilter();
-            if (selectedRaw is not null)
-            {
-                var row = _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault(candidate => (candidate.DataBoundItem as LogEntry)?.RawJson == selectedRaw);
-                if (row is not null) _grid.CurrentCell = row.Cells[0];
-            }
+            ApplyFilter(viewState);
         }
         catch (Exception ex)
         {
@@ -96,8 +93,9 @@ public sealed class LogViewerForm : Form
         finally { _loading = false; }
     }
 
-    private void ApplyFilter()
+    private void ApplyFilter(GridViewState? state = null)
     {
+        state ??= CaptureViewState();
         var query = _search.Text.Trim();
         var filtered = _entries.Where(entry => _level.SelectedIndex switch
             {
@@ -111,10 +109,43 @@ public sealed class LogViewerForm : Form
                 (entry.ExceptionType?.Contains(query, StringComparison.CurrentCultureIgnoreCase) ?? false) ||
                 (entry.ExceptionText?.Contains(query, StringComparison.CurrentCultureIgnoreCase) ?? false))
             .ToList();
-        _grid.DataSource = filtered;
+        _restoringView = true;
+        try
+        {
+            _grid.DataSource = filtered;
+            _grid.ClearSelection();
+            var selectedRow = state.SelectedSequence is long selectedSequence
+                ? FindRow(selectedSequence)
+                : null;
+            selectedRow ??= _grid.Rows.Cast<DataGridViewRow>().FirstOrDefault();
+            if (selectedRow is not null)
+            {
+                var columnIndex = Math.Clamp(state.ColumnIndex, 0, _grid.Columns.Count - 1);
+                _grid.CurrentCell = selectedRow.Cells[columnIndex];
+                selectedRow.Selected = true;
+            }
+
+            if (state.FirstVisibleSequence is long firstVisibleSequence && FindRow(firstVisibleSequence) is { } firstVisibleRow)
+                _grid.FirstDisplayedScrollingRowIndex = firstVisibleRow.Index;
+        }
+        finally { _restoringView = false; }
+
         _status.Text = $"{filtered.Count} / {_entries.Count}";
         if (filtered.Count == 0) { _details.Clear(); _json.Clear(); }
+        else ShowSelectedEntry();
     }
+
+    private GridViewState CaptureViewState()
+    {
+        var selectedSequence = (_grid.CurrentRow?.DataBoundItem as LogEntry)?.Sequence;
+        long? firstVisibleSequence = null;
+        if (_grid.FirstDisplayedScrollingRowIndex is var firstIndex && firstIndex >= 0 && firstIndex < _grid.Rows.Count)
+            firstVisibleSequence = (_grid.Rows[firstIndex].DataBoundItem as LogEntry)?.Sequence;
+        return new GridViewState(selectedSequence, firstVisibleSequence, _grid.CurrentCell?.ColumnIndex ?? 0);
+    }
+
+    private DataGridViewRow? FindRow(long sequence) => _grid.Rows.Cast<DataGridViewRow>()
+        .FirstOrDefault(row => (row.DataBoundItem as LogEntry)?.Sequence == sequence);
 
     private void ShowSelectedEntry()
     {
@@ -135,6 +166,22 @@ public sealed class LogViewerForm : Form
         var export = rows.Select(entry => new { entry.Timestamp, entry.Level, entry.Message, entry.ExceptionType, exception = entry.ExceptionText, entry.IsValid });
         await File.WriteAllTextAsync(dialog.FileName, JsonSerializer.Serialize(export, new JsonSerializerOptions { WriteIndented = true }));
         _status.Text = "Export terminé";
+    }
+
+    private static void DrawLogTab(object? sender, DrawItemEventArgs e)
+    {
+        if (sender is not TabControl tabs || e.Index < 0) return;
+        var dark = ThemeService.IsDarkNow;
+        var selected = e.Index == tabs.SelectedIndex;
+        var background = dark
+            ? selected ? Color.FromArgb(45, 45, 48) : Color.FromArgb(30, 30, 30)
+            : selected ? SystemColors.Window : SystemColors.Control;
+        var foreground = dark ? Color.FromArgb(241, 241, 241) : SystemColors.ControlText;
+        using var brush = new SolidBrush(background);
+        e.Graphics.FillRectangle(brush, e.Bounds);
+        TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text, tabs.Font, e.Bounds, foreground,
+            TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        e.DrawFocusRectangle();
     }
 
     private void GridCellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
@@ -160,6 +207,8 @@ public sealed class LogViewerForm : Form
         }
         catch (JsonException) { return value; }
     }
+
+    private sealed record GridViewState(long? SelectedSequence, long? FirstVisibleSequence, int ColumnIndex);
 
     private static RichTextBox DetailBox() => new()
     {
