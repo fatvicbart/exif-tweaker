@@ -36,7 +36,6 @@ partial class Form1
     private ToolStripMenuItem openFilesQuickItem = null!;
     private ToolStripMenuItem openFolderQuickItem = null!;
     private ToolStripMenuItem findGpsQuickItem = null!;
-    private ToolStripMenuItem setGpsQuickItem = null!;
     private ToolStripMenuItem copyGpsQuickItem = null!;
     private ToolStripMenuItem pasteGpsQuickItem = null!;
     private ToolStripMenuItem removeGpsQuickItem = null!;
@@ -94,7 +93,7 @@ partial class Form1
         });
         locationMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
-            findGpsMenuItem, setGpsCommand, new ToolStripSeparator(),
+            findGpsMenuItem, new ToolStripSeparator(),
             copyGpsCommand, pasteGpsCommand, new ToolStripSeparator(),
             removeGpsCommand, reverseGpsCommand
         });
@@ -131,14 +130,13 @@ partial class Form1
         dateQuickCommand = new ToolStripButton("Date et heure") { Name = "dateQuickCommand" };
         locationQuickCommand = new ToolStripDropDownButton("Localisation") { Name = "locationQuickCommand" };
         findGpsQuickItem = MenuItem("Rechercher un lieu…", "findGpsQuickItem");
-        setGpsQuickItem = MenuItem("Préparer le GPS saisi", "setGpsQuickItem");
         copyGpsQuickItem = MenuItem("Copier le GPS", "copyGpsQuickItem");
         pasteGpsQuickItem = MenuItem("Coller le GPS", "pasteGpsQuickItem");
         removeGpsQuickItem = MenuItem("Préparer la suppression du GPS", "removeGpsQuickItem");
         reverseGpsQuickItem = MenuItem("Identifier les coordonnées", "reverseGpsQuickItem");
         locationQuickCommand.DropDownItems.AddRange(new ToolStripItem[]
         {
-            findGpsQuickItem, setGpsQuickItem, new ToolStripSeparator(),
+            findGpsQuickItem, new ToolStripSeparator(),
             copyGpsQuickItem, pasteGpsQuickItem, new ToolStripSeparator(),
             removeGpsQuickItem, reverseGpsQuickItem
         });
@@ -178,7 +176,6 @@ partial class Form1
         SetText(plusHourCommand, "Avancer d’une heure");
         SetText(minusMinuteCommand, "Reculer d’une minute");
         SetText(plusMinuteCommand, "Avancer d’une minute");
-        SetText(setGpsCommand, "Préparer le GPS saisi");
         SetText(copyGpsCommand, "Copier le GPS");
         SetText(pasteGpsCommand, "Coller le GPS");
         SetText(removeGpsCommand, "Préparer la suppression du GPS");

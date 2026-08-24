@@ -80,4 +80,65 @@ public sealed class GpsAndHistoryTests
 
         Assert.IsFalse(history.CanUndo);
     }
+
+    [TestMethod]
+    public void ModifiedDetailsDescribeEveryPreparedMetadataChange()
+    {
+        var item = new PhotoItem("sample.jpg")
+        {
+            Original = new PhotoMetadata
+            {
+                CaptureDate = new DateTime(2024, 1, 1, 8, 0, 0),
+                Offset = TimeSpan.FromHours(1),
+                Latitude = 1,
+                Longitude = 2,
+                Altitude = 10
+            }
+        };
+        item.PendingChanges.CaptureDate = new DateTime(2024, 2, 3, 9, 30, 0);
+        item.PendingChanges.OffsetTimeOriginal = TimeSpan.FromHours(2);
+        item.PendingChanges.Latitude = 48.8566;
+        item.PendingChanges.Longitude = 2.3522;
+        item.PendingChanges.RemoveAltitude = true;
+        item.NotifyChanged();
+
+        Assert.AreEqual("Modified", item.Status);
+        StringAssert.Contains(item.Details, "Date : 2024-01-01 08:00:00 → 2024-02-03 09:30:00");
+        StringAssert.Contains(item.Details, "Fuseau : +01:00 → +02:00");
+        StringAssert.Contains(item.Details, "GPS : 1.000000, 2.000000, 10.00 m → 48.856600, 2.352200");
+    }
+
+    [TestMethod]
+    public void ResolvedLocationOnlyAppliesToMatchingEffectiveCoordinates()
+    {
+        var item = new PhotoItem("sample.jpg")
+        {
+            Original = new PhotoMetadata { Latitude = 48.8566, Longitude = 2.3522 }
+        };
+
+        Assert.AreEqual("Identification…", item.Location);
+        item.SetResolvedLocation(48.8566, 2.3522, "Paris, France");
+        Assert.AreEqual("Paris, France", item.Location);
+
+        item.PendingChanges.Latitude = 45.764;
+        item.PendingChanges.Longitude = 4.8357;
+        item.NotifyChanged();
+
+        Assert.AreEqual("Identification…", item.Location);
+    }
+
+    [TestMethod]
+    public void RemovedGpsIsExplicitInModifiedDetails()
+    {
+        var item = new PhotoItem("sample.jpg")
+        {
+            Original = new PhotoMetadata { Latitude = 48.8566, Longitude = 2.3522 }
+        };
+
+        new LocationEditorService().RemoveLocation(new[] { item });
+
+        Assert.AreEqual("Modified", item.Status);
+        StringAssert.Contains(item.Details, "Localisation GPS supprimée");
+        Assert.AreEqual(string.Empty, item.Location);
+    }
 }

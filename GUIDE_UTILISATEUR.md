@@ -26,7 +26,7 @@ ExifTweaker ne sert pas à modifier les pixels d’une image ni à monter une vi
 
 ExifTweaker fonctionne en deux temps.
 
-1. Une action comme **PRÉPARER**, **Préparer le GPS saisi** ou **Date et heure** prépare une modification en mémoire.
+1. Une action comme **PRÉPARER** ou **Date et heure** prépare une modification en mémoire.
 2. Le bouton **Vérifier et appliquer tout (N)** ouvre le contrôle final puis écrit toutes les modifications en attente dans les fichiers.
 
 ```mermaid
@@ -110,7 +110,7 @@ Si Windows SmartScreen affiche un avertissement, vérifier que l’archive provi
 │ [ ] [img] photo01.jpg ...                 │                                  │
 │ [ ] [img] video01.mp4 ...                 │                                  │
 ├────────────────┬─────────────────────────────────────────────────────────────┤
-│ FICHIERS…      │ Date/heure | Lat | Lon | Alt | Typ                         │
+│ FICHIERS…      │ Date et heure                                                │
 │ RECHERCHER     │ Recherche de lieu                                           │
 │ PRÉPARER       │ Nom ou description du lieu                                  │
 ├────────────────┴─────────────────────────────────────────────────────────────┤
@@ -124,7 +124,7 @@ La fenêtre est composée de six zones :
 2. la barre d’accès rapide pour les actions fréquentes ;
 3. la liste des médias à gauche ;
 4. l’aperçu ou la carte à droite ;
-5. les champs rapides de date et GPS en bas ;
+5. le sélecteur de date, la recherche de lieu et l’adresse choisie en bas ;
 6. la progression et l’état de l’opération.
 
 ### Menu principal complet
@@ -154,7 +154,6 @@ Date et heure
 
 Localisation
 ├── Rechercher un lieu…
-├── Préparer le GPS saisi
 ├── Copier le GPS
 ├── Coller le GPS
 ├── Préparer la suppression du GPS
@@ -232,7 +231,7 @@ Un média est considéré comme sélectionné s’il remplit au moins une condit
 
 > Les cases cochées et les lignes sélectionnées sont réunies. Vérifier les deux avant une opération en lot.
 
-Un clic sur une ligne actualise également les champs Date, Latitude, Longitude, Altitude, lieu/type et l’aperçu.
+Un clic sur une ligne actualise le sélecteur de date et l’aperçu. Le lieu choisi reste indépendant de la sélection des médias.
 
 ---
 
@@ -291,16 +290,14 @@ Un format reconnu peut néanmoins refuser certaines écritures selon sa structur
 | `FileName` | Nom complet du fichier |
 | `Date` | Date de capture effective, y compris les changements préparés |
 | `Timezone` | Décalage UTC, par exemple `+02:00` |
-| `Location` | Latitude et longitude effectives |
+| `Location` | Adresse identifiée à partir des coordonnées GPS effectives |
 | `Device` | Marque et modèle de l’appareil |
 | `Dimensions` | Largeur × hauteur |
 | `Latitude` | Latitude avec six décimales |
 | `Longitude` | Longitude avec six décimales |
 | `Altitude` | Altitude avec deux décimales |
-| `City` | Ville déjà présente dans les métadonnées |
-| `Country` | Pays déjà présent dans les métadonnées |
 | `Status` | État du média dans la session |
-| `Détails` | Explication d’un statut incomplet ou d’une erreur |
+| `Détails` | Changements préparés lorsque le statut est `Modified`, ou explication d’un statut incomplet ou d’une erreur |
 
 ### États possibles
 
@@ -348,7 +345,7 @@ Procédure :
 5. contrôler la colonne `Date` ;
 6. utiliser **Vérifier et appliquer tout (N)** seulement lorsque tout est correct.
 
-**PRÉPARER prépare la date et, lorsque les champs GPS sont remplis, la latitude, la longitude et l’altitude affichées.** Ces changements restent en mémoire jusqu’à l’action **Vérifier et appliquer tout (N)**.
+**PRÉPARER prépare la date et, lorsqu’un lieu a été choisi dans les suggestions ou sur la carte, sa position GPS.** Ces changements restent en mémoire jusqu’à l’action **Vérifier et appliquer tout (N)**.
 
 ---
 
@@ -423,35 +420,14 @@ Exemple : deux clics sur **Reculer d’une heure** et un clic sur **Avancer d’
 
 ---
 
-## 14. Saisir manuellement une position GPS
+## 14. Choisir une position GPS
 
-Les champs rapides sont :
+La saisie manuelle de latitude, longitude, altitude ou type a été supprimée. Un lieu se choisit désormais de deux façons :
 
-- `Lat` : latitude de `-90` à `+90` ;
-- `Lon` : longitude de `-180` à `+180` ;
-- `Alt` : altitude facultative, de `-12000` à `100000` ;
-- `Typ` : information en lecture seule sur le type.
+- sélectionner une proposition dans le champ **RECHERCHER** ;
+- cliquer sur un point de la carte.
 
-Les nombres acceptent le séparateur décimal courant de Windows ou le point invariant.
-
-Procédure :
-
-1. sélectionner les médias ;
-2. saisir latitude et longitude ;
-3. saisir l’altitude ou laisser le champ vide ;
-4. choisir **Localisation → Préparer le GPS saisi**, la même commande dans `Localisation ▼`, ou **PRÉPARER** pour préparer simultanément date et GPS ;
-5. vérifier `Modified`, `Location`, `Latitude`, `Longitude` et `Altitude` ;
-6. appliquer ultérieurement avec **Vérifier et appliquer tout (N)**.
-
-Exemple pour Paris :
-
-```text
-Lat : 48.8566
-Lon : 2.3522
-Alt : 35
-```
-
-Si l’altitude est laissée vide, ExifTweaker prépare la suppression d’une éventuelle altitude existante tout en conservant latitude et longitude.
+Le lieu choisi est mémorisé indépendamment de la sélection des médias. Son adresse apparaît à droite du bouton **PRÉPARER**. Sélectionner ensuite les médias concernés et cliquer sur **PRÉPARER** pour préparer simultanément la date et la position GPS.
 
 ---
 
@@ -459,12 +435,13 @@ Si l’altitude est laissée vide, ExifTweaker prépare la suppression d’une �
 
 Cette fonction nécessite Internet.
 
-1. Sélectionner les médias à géolocaliser.
-2. Saisir au moins deux caractères dans le grand champ de recherche, par exemple `Tour Eiffel, Paris`.
-3. Attendre l’ouverture automatique de la liste de suggestions. Le bouton **RECHERCHER** permet de relancer immédiatement la même recherche.
-4. Cliquer sur le résultat correct dans la liste.
-5. Vérifier les coordonnées remplies et le statut `Modified` : le GPS est préparé dès la sélection du lieu.
-6. Contrôler la carte ou les colonnes `Latitude`, `Longitude` et `Altitude`.
+1. Saisir au moins deux caractères dans le grand champ de recherche, par exemple `Tour Eiffel, Paris`.
+2. Attendre l’ouverture automatique de la liste de suggestions. Le bouton **RECHERCHER** permet de relancer immédiatement la même recherche.
+3. Cliquer sur le résultat correct dans la liste.
+4. Vérifier l’adresse affichée à droite de **PRÉPARER**.
+5. Sélectionner un ou plusieurs médias.
+6. Cliquer sur **PRÉPARER**.
+7. Vérifier le statut `Modified`, la colonne `Location` et la colonne `Détails`.
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
@@ -476,9 +453,7 @@ Cette fonction nécessite Internet.
 └───────────────────────────────────────────────────────────────┘
 ```
 
-> Le choix d’une suggestion remplit les champs et prépare immédiatement le GPS pour toute la sélection. Sans média sélectionné, les champs sont remplis mais un message indique clairement que rien n’a été préparé.
-
-Le nom et le type affichés après la recherche sont informatifs. La version actuelle écrit les coordonnées GPS et l’altitude, mais ne prépare pas l’écriture des champs `City`, `Country`, nom ou type.
+> Le choix d’une suggestion définit le lieu courant mais ne modifie rien immédiatement. Il est donc possible de choisir le lieu avant les médias.
 
 ---
 
@@ -495,16 +470,17 @@ La carte :
 - utilise OpenStreetMap par défaut ;
 - nécessite WebView2 et Internet.
 
-### Placer des médias par clic
+### Choisir un lieu par clic
 
-1. sélectionner un ou plusieurs médias ;
-2. saisir éventuellement une altitude dans `Alt` ;
-3. afficher **Carte** ;
-4. cliquer sur la position souhaitée ;
-5. les coordonnées sont immédiatement préparées pour la sélection ;
-6. vérifier les valeurs et le statut `Modified`.
+1. Afficher **Carte**.
+2. Cliquer sur la position souhaitée, avec ou sans média sélectionné.
+3. ExifTweaker mémorise le point et lance automatiquement l’identification de son adresse.
+4. Vérifier l’adresse affichée à droite de **PRÉPARER**.
+5. Sélectionner les médias à géolocaliser.
+6. Cliquer sur **PRÉPARER**.
+7. Contrôler `Location`, `Détails` et le statut `Modified`.
 
-Contrairement à **RECHERCHER**, un clic sur la carte prépare directement la position. Si aucun média n’est sélectionné, le clic ne modifie rien.
+Un clic sur la carte ne prépare plus immédiatement les fichiers. Il actualise toujours le lieu courant, même lorsque la sélection est vide.
 
 Cliquer de nouveau sur **Carte** pour revenir à l’aperçu du média.
 
@@ -538,9 +514,9 @@ Cette suppression n’est écrite qu’après **Vérifier et appliquer tout (N)*
 
 ### `Identifier les coordonnées`
 
-Effectue un géocodage inverse des coordonnées du premier média sélectionné, ou des coordonnées présentes dans les champs si aucun média actif ne fournit de GPS.
+Effectue un géocodage inverse du point courant choisi sur la carte, ou des coordonnées du premier média géolocalisé sélectionné.
 
-Le résultat remplit les champs de description et de recherche. Il est informatif : il n’ajoute pas actuellement la ville ou le pays aux métadonnées à écrire.
+Le résultat actualise le champ d’adresse et la recherche. L’adresse sert à l’affichage ; seules les coordonnées GPS sont écrites dans les métadonnées.
 
 ---
 
@@ -880,12 +856,13 @@ flowchart TD
 
 ### Exemple : géolocaliser plusieurs photos au même endroit
 
-1. sélectionner les photos ;
-2. saisir le lieu et attendre les suggestions ;
-3. choisir le bon résultat, ce qui prépare immédiatement le GPS ;
-4. afficher la carte pour contrôler ;
-5. utiliser **Modifiés** ;
-6. appliquer et vérifier le rapport.
+1. saisir le lieu et attendre les suggestions ;
+2. choisir le bon résultat ;
+3. sélectionner les photos ;
+4. cliquer sur **PRÉPARER** ;
+5. afficher la carte et la colonne `Location` pour contrôler ;
+6. utiliser **Modifiés** ;
+7. appliquer et vérifier le rapport.
 
 ### Exemple : copier la position d’une photo
 
@@ -1018,9 +995,8 @@ Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier
 - La session et les changements non appliqués ne sont pas sauvegardés à la fermeture.
 - **Vérifier et appliquer tout (N)** s’applique à toute la session modifiée, pas uniquement à la sélection.
 - Les filtres ne limitent pas la portée de **Vérifier et appliquer tout (N)**.
-- La sélection d’une suggestion de lieu prépare immédiatement les coordonnées pour les médias sélectionnés.
-- Le clic sur la carte, lui, prépare directement le GPS pour la sélection.
-- Le nom du lieu, le type, la ville et le pays ne sont pas actuellement préparés à l’écriture.
+- Le choix d’une suggestion ou d’un point sur la carte définit un lieu courant ; il faut cliquer sur **PRÉPARER** pour l’associer aux médias sélectionnés.
+- L’adresse identifiée est informative ; seules les coordonnées GPS sont préparées à l’écriture.
 - L’aperçu vidéo n’est pas un lecteur.
 - La carte dépend d’Internet, de Leaflet, des tuiles et de WebView2.
 - La stratégie sans sauvegarde ne permet pas la restauration intégrée.
@@ -1040,8 +1016,8 @@ Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier
 ### Pendant
 
 - [ ] J’ai vérifié exactement quels médias sont sélectionnés.
-- [ ] J’ai compris que `PRÉPARER` prépare la date et les champs GPS remplis.
-- [ ] Avant de choisir une suggestion GPS, j’ai sélectionné les médias concernés.
+- [ ] J’ai compris que `PRÉPARER` prépare la date et le lieu courant éventuellement choisi.
+- [ ] Avant de cliquer sur `PRÉPARER`, j’ai sélectionné les médias concernés.
 - [ ] J’ai contrôlé le filtre `Modified`.
 - [ ] Le nombre `pending` correspond à mon intention.
 
