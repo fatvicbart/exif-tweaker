@@ -19,6 +19,7 @@ public sealed class InformationControl : UserControl
         Text = "Sélectionnez une image pour afficher ses métadonnées.", TextAlign = ContentAlignment.MiddleCenter
     };
     private IReadOnlyList<ExifTagInfo> _tags = Array.Empty<ExifTagInfo>();
+    private int _updateDepth;
 
     public InformationControl()
     {
@@ -35,6 +36,24 @@ public sealed class InformationControl : UserControl
         Controls.Add(_filter);
         Controls.Add(_fileName);
         _filter.TextChanged += (_, _) => ApplyFilter();
+    }
+
+    public void BeginUpdate()
+    {
+        if (_updateDepth++ > 0) return;
+        SuspendLayout();
+        if (_grid.IsHandleCreated)
+            SendMessage(_grid.Handle, WmSetRedraw, IntPtr.Zero, IntPtr.Zero);
+    }
+
+    public void EndUpdate()
+    {
+        if (_updateDepth == 0 || --_updateDepth > 0) return;
+        if (_grid.IsHandleCreated)
+            SendMessage(_grid.Handle, WmSetRedraw, new IntPtr(1), IntPtr.Zero);
+        ResumeLayout(false);
+        _grid.Invalidate(true);
+        Invalidate(true);
     }
 
     public void ShowEmpty()
@@ -92,4 +111,9 @@ public sealed class InformationControl : UserControl
         _status.BringToFront();
         _grid.Visible = false;
     }
+
+    private const int WmSetRedraw = 0x000B;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
 }

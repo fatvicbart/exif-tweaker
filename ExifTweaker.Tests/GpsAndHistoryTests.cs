@@ -169,6 +169,21 @@ public sealed class GpsAndHistoryTests
         Assert.AreEqual(2, item.Details.Split(Environment.NewLine).Length);
     }
     [TestMethod]
+    public void GpsPreparationRaisesOneItemNotification()
+    {
+        var item = new PhotoItem("sample.jpg");
+        var session = new ImportSession();
+        session.AddRange(new[] { item });
+        var notifications = 0;
+        item.PropertyChanged += (_, _) => notifications++;
+
+        new SessionController(session, new EditHistory()).SetLocation(
+            new[] { item }, 48.8566, 2.3522, 35, new LocationEditorService());
+
+        Assert.AreEqual(1, notifications);
+    }
+
+    [TestMethod]
     public void RemoveRangeRaisesOneSessionNotification()
     {
         var first = new PhotoItem("first.jpg");

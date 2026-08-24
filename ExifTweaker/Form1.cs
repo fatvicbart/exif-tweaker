@@ -53,6 +53,8 @@ public partial class Form1 : Form
     private bool _sessionRefreshPending;
     private bool _restoringGridSelection;
     private (string FilePath, DateTime LastWriteUtc)? _informationRequest;
+    private int _boundItemsUpdateDepth;
+    private bool _refreshInformationAfterBoundUpdate;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
         .Select(row => row.DataBoundItem as PhotoItem)
@@ -121,12 +123,41 @@ public partial class Form1 : Form
         RefreshFilter();
     }
 
+    private void BeginBoundItemsUpdate()
+    {
+        if (_boundItemsUpdateDepth++ > 0) return;
+        _view.RaiseListChangedEvents = false;
+        _session.Media.RaiseListChangedEvents = false;
+        _informationView.BeginUpdate();
+    }
+
+    private void EndBoundItemsUpdate(bool refreshInformation = false)
+    {
+        _refreshInformationAfterBoundUpdate |= refreshInformation;
+        if (_boundItemsUpdateDepth == 0 || --_boundItemsUpdateDepth > 0) return;
+
+        _session.Media.RaiseListChangedEvents = true;
+        _view.RaiseListChangedEvents = true;
+        _informationView.EndUpdate();
+        if (_refreshInformationAfterBoundUpdate) _informationRequest = null;
+        _refreshInformationAfterBoundUpdate = false;
+        _sessionRefreshPending = true;
+        QueueSessionRefresh();
+    }
+
+    private void RunPreparedEdit(Action action)
+    {
+        BeginBoundItemsUpdate();
+        try { action(); }
+        finally { EndBoundItemsUpdate(); }
+    }
+
 
     private void PrepareDateForSelection(object? sender, EventArgs e)
     {
         var selected = SelectedItems;
         if (selected.Count == 0) return;
-        _sessionController.StageDate(selected, dateTimePicker1.Value);
+        RunPreparedEdit(() => _sessionController.StageDate(selected, dateTimePicker1.Value));
         operationStatus.Text = $"Date préparée pour {selected.Count} fichier(s).";
     }
 
@@ -134,10 +165,13 @@ public partial class Form1 : Form
     {
         var selected = SelectedItems;
         if (selected.Count == 0 || !IsGpsInputValid || _currentLocation is not { } location) return;
-        _sessionController.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude, _locations);
-        if (!string.IsNullOrWhiteSpace(_currentLocationName))
-            foreach (var item in selected) item.SetResolvedLocation(location.Latitude, location.Longitude, _currentLocationName);
-        else QueueLocationResolution(selected);
+        RunPreparedEdit(() =>
+        {
+            _sessionController.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude, _locations);
+            if (!string.IsNullOrWhiteSpace(_currentLocationName))
+                foreach (var item in selected) item.SetResolvedLocation(location.Latitude, location.Longitude, _currentLocationName);
+        });
+        if (string.IsNullOrWhiteSpace(_currentLocationName)) QueueLocationResolution(selected);
         RefreshMapMarkers();
         operationStatus.Text = $"Localisation préparée pour {selected.Count} fichier(s).";
     }
@@ -219,6 +253,8 @@ public partial class Form1 : Form
             if (previewDialog.ShowDialog(this) != DialogResult.OK || !previewDialog.Confirmed) return;
         }
 
+        var refreshInformation = false;
+        BeginBoundItemsUpdate();
         try
         {
             SetBusy(true);
@@ -226,6 +262,7 @@ public partial class Form1 : Form
             var progress = new Progress<int>(value => pgb.Value = value);
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
             var succeeded = photos.Where(photo => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(photo.FilePath, StringComparison.OrdinalIgnoreCase))).ToList();
+            refreshInformation = succeeded.Any(item => ReferenceEquals(item, _activeItem));
             _history.Forget(succeeded);
             foreach (var item in succeeded)
             {
@@ -234,7 +271,6 @@ public partial class Form1 : Form
             }
             _session.NotifyChanged();
             QueueLocationResolution(succeeded);
-            _informationRequest = null;
             using var report = new ApplyReportForm(result);
             ThemeService.Apply(report);
             report.ShowDialog(this);
@@ -245,7 +281,11 @@ public partial class Form1 : Form
             AppLogger.Error("Apply failed.", ex);
             ThemedMessageBox.Show(ex.Message, "Apply error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { SetBusy(false); }
+        finally
+        {
+            EndBoundItemsUpdate(refreshInformation);
+            SetBusy(false);
+        }
     }
 
     private async void bGPS_Click(object? sender, EventArgs e)
@@ -605,7 +645,7 @@ public partial class Form1 : Form
             return;
         }
         DisplayActiveMetadata(_activeItem);
-        if (_informationView.Visible) await LoadInformationAsync(_activeItem);
+        if (_informationView.Visible && !_isBusy && _boundItemsUpdateDepth == 0) await LoadInformationAsync(_activeItem);
     }
 
     private void ToggleQuickActions()
@@ -666,7 +706,7 @@ public partial class Form1 : Form
         UpdateCommandState();
         var currentItem = dgv.CurrentRow?.DataBoundItem as PhotoItem;
         if (!ReferenceEquals(currentItem, _activeItem)) _ = ActiveSelectionChangedAsync();
-        else if (_informationView.Visible && currentItem is not null) _ = LoadInformationAsync(currentItem);
+        else if (_informationView.Visible && !_isBusy && _boundItemsUpdateDepth == 0 && currentItem is not null) _ = LoadInformationAsync(currentItem);
     }
 
     private void OpenDateEditor()
@@ -678,7 +718,7 @@ public partial class Form1 : Form
         using var dialog = new DateEditorForm(dates.Count == 1 ? dates[0] : null, offsets.Count == 1 ? offsets[0] : null, dates.Count > 1 || offsets.Count > 1);
         ThemeService.Apply(dialog);
         if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Request is not null)
-            _sessionController.EditDate(selected, dialog.Request);
+            RunPreparedEdit(() => _sessionController.EditDate(selected, dialog.Request));
     }
 
     private async Task OpenSettingsAsync()
@@ -775,7 +815,7 @@ public partial class Form1 : Form
     private void RemoveGpsSelected()
     {
         var selected = SelectedItems;
-        _sessionController.RemoveLocation(selected, _locations);
+        RunPreparedEdit(() => _sessionController.RemoveLocation(selected, _locations));
         RefreshMapMarkers();
     }
 
@@ -796,7 +836,7 @@ public partial class Form1 : Form
     {
         if (_gpsClipboard is not { } gps || SelectedItems.Count == 0) return;
         var selected = SelectedItems;
-        _sessionController.SetLocation(selected, gps.Latitude, gps.Longitude, gps.Altitude, _locations);
+        RunPreparedEdit(() => _sessionController.SetLocation(selected, gps.Latitude, gps.Longitude, gps.Altitude, _locations));
         SetGpsSearchTextSilently(FormatGpsSearchText(gps));
         SetCurrentLocation(gps, null);
         QueueLocationResolution(selected);
@@ -946,24 +986,27 @@ public partial class Form1 : Form
     private void ShiftSelected(TimeSpan shift)
     {
         var selected = SelectedItems;
-        _sessionController.ShiftDate(selected, shift);
+        RunPreparedEdit(() => _sessionController.ShiftDate(selected, shift));
     }
 
     private async Task RestoreSelectedAsync()
     {
         var selected = SelectedItems;
         if (selected.Count == 0 || ThemedMessageBox.Show("Les fichiers sélectionnés vont être restaurés depuis leurs sauvegardes ExifTool.\n\nVoulez-vous continuer ?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        var refreshInformation = false;
+        BeginBoundItemsUpdate();
         SetBusy(true);
         try
         {
             var result = await _metadata.RestoreBackupsAsync(selected, StartOperation());
-            foreach (var item in selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))))
+            var succeeded = selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))).ToList();
+            refreshInformation = succeeded.Any(item => ReferenceEquals(item, _activeItem));
+            foreach (var item in succeeded)
             {
                 _thumbnails.Invalidate(item.FilePath);
                 _informationCache.TryRemove(item.FilePath, out _);
             }
-            _history.Forget(selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))));
-            _informationRequest = null;
+            _history.Forget(succeeded);
             _session.NotifyChanged();
             QueueLocationResolution(selected);
             using var report = new ApplyReportForm(result) { Text = "Restore report" };
@@ -976,29 +1019,41 @@ public partial class Form1 : Form
             AppLogger.Error("Restore failed.", ex);
             ThemedMessageBox.Show(ex.Message, "Restore error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
-        finally { SetBusy(false); }
+        finally
+        {
+            EndBoundItemsUpdate(refreshInformation);
+            SetBusy(false);
+        }
     }
 
     private void ResetPatches(IEnumerable<PhotoItem> items)
     {
         var list = items.ToList();
-        _sessionController.Reset(list);
+        RunPreparedEdit(() => _sessionController.Reset(list));
         QueueLocationResolution(list);
     }
 
 
     private void UndoPendingChanges()
     {
-        if (!_history.Undo(_session.Media)) return;
-        _session.NotifyChanged();
-        QueueLocationResolution(_session.Media);
+        var changed = false;
+        RunPreparedEdit(() =>
+        {
+            changed = _history.Undo(_session.Media);
+            if (changed) _session.NotifyChanged();
+        });
+        if (changed) QueueLocationResolution(_session.Media);
     }
 
     private void RedoPendingChanges()
     {
-        if (!_history.Redo(_session.Media)) return;
-        _session.NotifyChanged();
-        QueueLocationResolution(_session.Media);
+        var changed = false;
+        RunPreparedEdit(() =>
+        {
+            changed = _history.Redo(_session.Media);
+            if (changed) _session.NotifyChanged();
+        });
+        if (changed) QueueLocationResolution(_session.Media);
     }
 
     private void RemoveSelectedFromSession()

@@ -14,7 +14,6 @@ public sealed class LocationEditorService
             item.PendingChanges.Longitude = longitude;
             item.PendingChanges.Altitude = altitude;
             item.PendingChanges.RemoveAltitude = !altitude.HasValue;
-            item.NotifyChanged();
         }
     }
 
@@ -27,7 +26,6 @@ public sealed class LocationEditorService
             item.PendingChanges.Longitude = null;
             item.PendingChanges.Altitude = null;
             item.PendingChanges.RemoveAltitude = false;
-            item.NotifyChanged();
         }
     }
 
