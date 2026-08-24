@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Globalization;
 
 namespace ExifTweaker.Controls;
@@ -15,6 +16,7 @@ public sealed class ThemedDateTimeInput : MaskedTextBox
         Value = DateTime.Now;
     }
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public DateTime Value
     {
         get
@@ -29,8 +31,11 @@ public sealed class ThemedDateTimeInput : MaskedTextBox
         }
     }
 
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public DateTimePickerFormat Format { get; set; } = DateTimePickerFormat.Custom;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public string CustomFormat { get; set; } = DisplayFormat;
+    [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public bool ShowUpDown { get; set; } = true;
 
     protected override void OnLeave(EventArgs e)
