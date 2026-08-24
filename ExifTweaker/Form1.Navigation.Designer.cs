@@ -26,6 +26,8 @@ partial class Form1
     private ToolStripMenuItem applyMenuItem = null!;
     private ToolStripMenuItem applySelectedMenuItem = null!;
     private ToolStripMenuItem cancelMenuItem = null!;
+    private ToolStripMenuItem uploadImmichSelectedMenuItem = null!;
+    private ToolStripMenuItem uploadImmichAllMenuItem = null!;
     private ToolStripMenuItem guideMenuItem = null!;
     private ToolStripMenuItem logsMenuItem = null!;
     private ToolStripMenuItem verifyExifToolMenuItem = null!;
@@ -37,6 +39,7 @@ partial class Form1
     private ToolStripDropDownButton locationQuickCommand = null!;
     private ToolStripButton mapQuickCommand = null!;
     private ToolStripDropDownButton filterQuickCommand = null!;
+    private ToolStripDropDownButton immichQuickCommand = null!;
 
     private ToolStripMenuItem openFilesQuickItem = null!;
     private ToolStripMenuItem openFolderQuickItem = null!;
@@ -50,6 +53,8 @@ partial class Form1
     private ToolStripMenuItem noGpsFilterQuickItem = null!;
     private ToolStripMenuItem noDateFilterQuickItem = null!;
     private ToolStripMenuItem errorsFilterQuickItem = null!;
+    private ToolStripMenuItem uploadImmichSelectedQuickItem = null!;
+    private ToolStripMenuItem uploadImmichAllQuickItem = null!;
 
     private void InitializeNavigation()
     {
@@ -78,6 +83,8 @@ partial class Form1
         quickActionsToggleItem.Alignment = ToolStripItemAlignment.Right;
         quickActionsToggleItem.Checked = true;
         applyMenuItem = MenuItem("Vérifier et appliquer", "applyMenuItem");
+        uploadImmichSelectedMenuItem = MenuItem("Envoyer la sélection vers Immich…", "uploadImmichSelectedMenuItem");
+        uploadImmichAllMenuItem = MenuItem("Envoyer toutes les images vers Immich…", "uploadImmichAllMenuItem");
         applySelectedMenuItem = MenuItem("Vérifier et appliquer la sélection", "applySelectedMenuItem");
         cancelMenuItem = MenuItem("Interrompre l’opération en cours", "cancelMenuItem");
         guideMenuItem = MenuItem("&Guide utilisateur", "guideMenuItem", Keys.F1);
@@ -120,7 +127,8 @@ partial class Form1
         actionsMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
             applyMenuItem, applySelectedMenuItem, new ToolStripSeparator(),
-            resetAllCommand, resetSelectedCommand, new ToolStripSeparator(), cancelMenuItem
+            resetAllCommand, resetSelectedCommand, new ToolStripSeparator(),
+            uploadImmichSelectedMenuItem, uploadImmichAllMenuItem, new ToolStripSeparator(), cancelMenuItem
         });
         helpMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
@@ -168,12 +176,17 @@ partial class Form1
         {
             allFilterQuickItem, modifiedFilterQuickItem, noGpsFilterQuickItem, noDateFilterQuickItem, errorsFilterQuickItem
         });
+        immichQuickCommand = new ToolStripDropDownButton("Immich") { Name = "immichQuickCommand" };
+        uploadImmichSelectedQuickItem = MenuItem("Envoyer la sélection…", "uploadImmichSelectedQuickItem");
+        uploadImmichAllQuickItem = MenuItem("Envoyer toutes les images…", "uploadImmichAllQuickItem");
+        immichQuickCommand.DropDownItems.AddRange(new ToolStripItem[] { uploadImmichSelectedQuickItem, uploadImmichAllQuickItem });
+
 
         commands.Items.Clear();
         commands.Items.AddRange(new ToolStripItem[]
         {
             openQuickCommand, dateQuickCommand, locationQuickCommand, mapQuickCommand,
-            new ToolStripSeparator(), undoCommand, redoCommand, filterQuickCommand,
+            new ToolStripSeparator(), undoCommand, redoCommand, filterQuickCommand, immichQuickCommand,
             new ToolStripSeparator(), cancelCommand, operationStatus
         });
         commands.Padding = new Padding(4, 2, 4, 2);

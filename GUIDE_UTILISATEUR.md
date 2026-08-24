@@ -1063,3 +1063,27 @@ Le fichier `nom.ext_original` est absent, inaccessible ou verrouillé. Vérifier
 - [Téléchargement officiel de .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Documentation Microsoft sur WebView2 Runtime](https://learn.microsoft.com/microsoft-edge/webview2/concepts/distribution)
 - [Guide de création d’une release pour les mainteneurs](GUIDE_RELEASE_GITHUB.md)
+
+---
+
+## 34. Envoyer des images vers Immich
+
+### Configuration initiale
+
+1. Dans Immich, ouvrez les paramètres de votre compte et créez une clé API dédiée à ExifTweaker.
+2. Accordez uniquement les permissions nécessaires : `server.about`, `asset.upload`, `asset.share`, `album.read`, `album.create` et `albumAsset.create`.
+3. Dans ExifTweaker, ouvrez **Fichier > Paramètres…**, puis **Configurer Immich…**.
+4. Saisissez l’adresse du serveur, par exemple `https://photos.exemple.fr/api`, et la clé API.
+5. Cliquez sur **Tester la connexion**, puis enregistrez.
+
+La clé est chiffrée avec la protection de données Windows liée à l’utilisateur. Elle n’est pas écrite dans `settings.json`. Pour un déploiement automatisé, utilisez `EXIFTWEAKER_IMMICH_URL` et `EXIFTWEAKER_IMMICH_API_KEY`.
+
+### Envoyer un lot
+
+Utilisez **Actions > Envoyer la sélection vers Immich…**, **Envoyer toutes les images vers Immich…**, ou le bouton **Immich** de la barre d’actions rapides.
+
+La fenêtre de préparation permet de choisir un album existant, d’en créer un, de sélectionner la visibilité et le nombre d’envois simultanés. Si des modifications EXIF sont encore en attente, l’option recommandée les applique avant l’envoi. Sinon, Immich reçoit la version actuellement enregistrée sur le disque.
+
+Pendant l’envoi, chaque fichier affiche son état. **Déjà présente** signifie qu’Immich a reconnu un doublon ; ce n’est pas une erreur. Les échecs peuvent être relancés sans renvoyer tout le lot. Une annulation interrompt les requêtes restantes, mais ne supprime pas les images déjà reçues par Immich.
+
+ExifTweaker ne supprime jamais les fichiers locaux après un upload.

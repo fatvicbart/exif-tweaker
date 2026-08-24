@@ -73,6 +73,13 @@ public sealed partial class SettingsForm : Form
         finally { if (!IsDisposed) checkUpdatesButton.Enabled = true; }
     }
 
+    private void immichSettingsButton_Click(object? sender, EventArgs e)
+    {
+        using var dialog = new ImmichSettingsForm(_settings);
+        ThemeService.Apply(dialog);
+        dialog.ShowDialog(this);
+    }
+
     private void browseButton_Click(object? sender, EventArgs e)
     {
         using var dialog = new OpenFileDialog { Filter = "ExifTool|exiftool.exe;exiftool|All files|*.*", CheckFileExists = true };

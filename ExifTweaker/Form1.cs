@@ -243,17 +243,18 @@ public partial class Form1 : Form
         finally { SetBusy(false); }
     }
 
-    private async Task ApplyPendingChangesAsync(IReadOnlyList<PhotoItem> photos)
+    private async Task<bool> ApplyPendingChangesAsync(IReadOnlyList<PhotoItem> photos)
     {
         var preview = _metadata.Preview(photos);
-        if (preview.FileCount == 0) return;
+        if (preview.FileCount == 0) return true;
         using (var previewDialog = new ApplyPreviewForm(preview))
         {
             ThemeService.Apply(previewDialog);
-            if (previewDialog.ShowDialog(this) != DialogResult.OK || !previewDialog.Confirmed) return;
+            if (previewDialog.ShowDialog(this) != DialogResult.OK || !previewDialog.Confirmed) return false;
         }
 
         var refreshInformation = false;
+        var appliedAll = false;
         BeginBoundItemsUpdate();
         try
         {
@@ -262,6 +263,7 @@ public partial class Form1 : Form
             var progress = new Progress<int>(value => pgb.Value = value);
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
             var succeeded = photos.Where(photo => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(photo.FilePath, StringComparison.OrdinalIgnoreCase))).ToList();
+            appliedAll = succeeded.Count == preview.FileCount;
             refreshInformation = succeeded.Any(item => ReferenceEquals(item, _activeItem));
             _history.Forget(succeeded);
             foreach (var item in succeeded)
@@ -286,6 +288,7 @@ public partial class Form1 : Form
             EndBoundItemsUpdate(refreshInformation);
             SetBusy(false);
         }
+        return appliedAll;
     }
 
     private async void bGPS_Click(object? sender, EventArgs e)
@@ -576,6 +579,10 @@ public partial class Form1 : Form
         applyAllButton.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         applySelectedMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(SelectedItems);
+        uploadImmichSelectedMenuItem.Click += async (_, _) => await SendToImmichAsync(SelectedItems);
+        uploadImmichAllMenuItem.Click += async (_, _) => await SendToImmichAsync(_session.Media.ToList());
+        uploadImmichSelectedQuickItem.Click += async (_, _) => await SendToImmichAsync(SelectedItems);
+        uploadImmichAllQuickItem.Click += async (_, _) => await SendToImmichAsync(_session.Media.ToList());
         openFilesMenuItem.Click += button2_Click;
         openFilesQuickItem.Click += button2_Click;
         Command("openFolderCommand").Click += async (_, _) => await OpenFolderAsync();
@@ -730,6 +737,62 @@ public partial class Form1 : Form
         try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
         catch (Exception ex) { AppLogger.Error("Map reconfiguration failed.", ex); }
         ThemedMessageBox.Show("Paramètres enregistrés.\n\nRedémarrez l’application uniquement si le chemin d’ExifTool a été modifié.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+    }
+
+    private async Task SendToImmichAsync(IReadOnlyList<PhotoItem> photos)
+    {
+        if (photos.Count == 0) return;
+        var secrets = new WindowsSecretStore();
+        var key = secrets.Read("immich-api-key");
+        if (!_settings.ImmichEnabled || string.IsNullOrWhiteSpace(_settings.ImmichServerUrl) || string.IsNullOrWhiteSpace(key))
+        {
+            var configure = ThemedMessageBox.Show(
+                "L’intégration Immich n’est pas encore configurée. Ouvrir sa configuration maintenant ?",
+                "Immich", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (configure != DialogResult.Yes) return;
+            using (var settingsDialog = new ImmichSettingsForm(_settings, secrets))
+            {
+                ThemeService.Apply(settingsDialog);
+                if (settingsDialog.ShowDialog(this) != DialogResult.OK) return;
+            }
+            key = secrets.Read("immich-api-key");
+            if (!_settings.ImmichEnabled || string.IsNullOrWhiteSpace(key)) return;
+        }
+
+        using var client = new ImmichClient(_settings.ImmichServerUrl, key);
+        ImmichServerInfo server;
+        IReadOnlyList<ImmichAlbum> albums;
+        try
+        {
+            SetBusy(true);
+            var ct = StartOperation();
+            operationStatus.Text = "Connexion à Immich…";
+            server = await client.GetServerInfoAsync(ct);
+            operationStatus.Text = "Chargement des albums Immich…";
+            albums = await client.GetAlbumsAsync(ct);
+        }
+        catch (OperationCanceledException) { return; }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Unable to prepare the Immich upload.", ex);
+            ThemedMessageBox.Show(
+                $"{ex.Message}\n\nVérifiez l’adresse, la clé et ses permissions : server.about, asset.upload, asset.share, album.read, album.create et albumAsset.create.",
+                "Connexion Immich", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            return;
+        }
+        finally { SetBusy(false); }
+
+        using var prepare = new ImmichUploadForm(photos, albums, _settings, server);
+        ThemeService.Apply(prepare);
+        if (prepare.ShowDialog(this) != DialogResult.OK || prepare.Request is null) return;
+
+        var pending = photos.Where(photo => photo.HasPendingChanges).ToList();
+        if (pending.Count > 0 && prepare.ApplyBeforeUpload && !await ApplyPendingChangesAsync(pending)) return;
+
+        var request = prepare.Request with { FilePaths = photos.Select(photo => photo.FilePath).ToList() };
+        using var progressDialog = new ImmichUploadProgressForm(new ImmichUploadService(client), request);
+        ThemeService.Apply(progressDialog);
+        progressDialog.ShowDialog(this);
     }
 
     private void ToggleMap()
@@ -1103,6 +1166,10 @@ public partial class Form1 : Form
         undoCommand.Enabled = undoMenuItem.Enabled = !_isBusy && _history.CanUndo;
         redoCommand.Enabled = redoMenuItem.Enabled = !_isBusy && _history.CanRedo;
         cancelCommand.Enabled = cancelMenuItem.Enabled = _isBusy;
+
+        uploadImmichSelectedMenuItem.Enabled = uploadImmichSelectedQuickItem.Enabled = canEditSelection;
+        uploadImmichAllMenuItem.Enabled = uploadImmichAllQuickItem.Enabled = !_isBusy && hasMedia;
+        immichQuickCommand.Enabled = !_isBusy && hasMedia;
 
         bOpen.Enabled = canEditSelection;
         dateEditorCommand.Enabled = dateQuickCommand.Enabled = canEditSelection;

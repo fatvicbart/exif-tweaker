@@ -19,6 +19,12 @@ public sealed class AppSettings
     public string MapAttribution { get; set; } = "OpenStreetMap contributors";
     public bool CheckForUpdatesAutomatically { get; set; } = true;
     public bool IncludePrereleaseUpdates { get; set; } = false;
+    public bool ImmichEnabled { get; set; }
+    public string ImmichServerUrl { get; set; } = string.Empty;
+    public string? ImmichDefaultAlbumId { get; set; }
+    public string? ImmichDefaultAlbumName { get; set; }
+    public string ImmichDefaultVisibility { get; set; } = "timeline";
+    public int ImmichUploadConcurrency { get; set; } = 3;
 
     public static string SettingsPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "settings.json");
@@ -57,9 +63,12 @@ public sealed class AppSettings
     {
         MapsCoApiKey = Environment.GetEnvironmentVariable("EXIFTWEAKER_MAPSCO_API_KEY") ?? MapsCoApiKey;
         ExifToolPath = Environment.GetEnvironmentVariable("EXIFTWEAKER_EXIFTOOL_PATH") ?? ExifToolPath;
+        ImmichServerUrl = Environment.GetEnvironmentVariable("EXIFTWEAKER_IMMICH_URL") ?? ImmichServerUrl;
         MaxParallelism = Math.Clamp(MaxParallelism, 1, 16);
         GeocodingProvider = string.IsNullOrWhiteSpace(GeocodingProvider) ? "Nominatim" : GeocodingProvider;
         MapTileUrl = string.IsNullOrWhiteSpace(MapTileUrl) ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" : MapTileUrl;
+        ImmichUploadConcurrency = Math.Clamp(ImmichUploadConcurrency, 1, 8);
+        ImmichDefaultVisibility = ImmichDefaultVisibility is "archive" or "hidden" or "locked" ? ImmichDefaultVisibility : "timeline";
         return this;
     }
 }
