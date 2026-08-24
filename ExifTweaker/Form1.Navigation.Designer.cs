@@ -75,7 +75,7 @@ partial class Form1
         applyMenuItem = MenuItem("Vérifier et appliquer", "applyMenuItem");
         cancelMenuItem = MenuItem("Annuler l’opération", "cancelMenuItem");
         guideMenuItem = MenuItem("&Guide utilisateur", "guideMenuItem", Keys.F1);
-        logsMenuItem = MenuItem("Ouvrir le dossier des &journaux", "logsMenuItem");
+        logsMenuItem = MenuItem("Afficher les &journaux…", "logsMenuItem");
         verifyExifToolMenuItem = MenuItem("&Vérifier ExifTool", "verifyExifToolMenuItem");
         checkUpdatesMenuItem = MenuItem("Rechercher les &mises à jour…", "checkUpdatesMenuItem");
         aboutMenuItem = MenuItem("À &propos d’ExifTweaker", "aboutMenuItem");

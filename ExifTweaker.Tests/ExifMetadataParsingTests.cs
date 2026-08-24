@@ -31,4 +31,27 @@ public sealed class ExifMetadataParsingTests
         Assert.AreEqual("Nominatim", new AppSettings().GeocodingProvider);
         Assert.AreEqual(AppThemeMode.Automatic, new AppSettings().Theme);
     }
+    [TestMethod]
+    public void LogParserProducesReadableStructuredEntry()
+    {
+        const string json = """{"timestamp":"2026-08-24T12:34:56+02:00","level":"error","message":"Import failed","exceptionType":"System.IO.IOException","exception":"stack trace"}""";
+
+        var entry = AppLogger.ParseLine(json);
+
+        Assert.IsTrue(entry.IsValid);
+        Assert.AreEqual("error", entry.Level);
+        Assert.AreEqual("Import failed", entry.Message);
+        Assert.AreEqual("System.IO.IOException", entry.ExceptionType);
+        Assert.AreEqual("stack trace", entry.ExceptionText);
+    }
+
+    [TestMethod]
+    public void LogParserKeepsMalformedSourceVisible()
+    {
+        var entry = AppLogger.ParseLine("not-json");
+
+        Assert.IsFalse(entry.IsValid);
+        Assert.AreEqual("invalid", entry.Level);
+        Assert.AreEqual("not-json", entry.RawJson);
+    }
 }

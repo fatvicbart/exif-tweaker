@@ -70,8 +70,9 @@ public partial class Form1 : Form
         _informationView.Visible = false;
         InitializeGpsSuggestionsPopup();
         InitializeNavigation();
-        ThemeService.Apply(this, _settings.Theme);
-        ThemeService.Apply(_gpsSuggestionsPopup, _settings.Theme);
+        ThemeService.Apply(this);
+        ThemeService.Apply(_gpsSuggestionsPopup);
+        ThemeService.ThemeChanged += OnThemeChanged;
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
         bOpen.Text = "PRÉPARER LA DATE À LA SÉLECTION";
@@ -82,9 +83,9 @@ public partial class Form1 : Form
         _map.MapLocationChanged += async (_, point) => await SetLocationFromMapAsync(point.Latitude, point.Longitude);
         Shown += async (_, _) =>
         {
-            ThemeService.Apply(this, _settings.Theme);
+            ThemeService.Apply(this);
             try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
-            catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); MessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); ThemedMessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
             if (_settings.CheckForUpdatesAutomatically)
                 await _updates.CheckAndPromptAsync(this, manual: false);
         };
@@ -164,7 +165,7 @@ public partial class Form1 : Form
             {
                 var details = string.Join(Environment.NewLine, discovery.Errors.Take(8));
                 if (discovery.Errors.Count > 8) details += $"{Environment.NewLine}… and {discovery.Errors.Count - 8} more.";
-                MessageBox.Show(details, "Some paths could not be imported", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                ThemedMessageBox.Show(details, "Some paths could not be imported", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             var existing = _files.Select(item => item.FilePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
             var newPaths = discovery.Files.Where(path => !existing.Contains(path)).ToList();
@@ -176,7 +177,7 @@ public partial class Form1 : Form
             QueueLocationResolution(items);
         }
         catch (OperationCanceledException) { AppLogger.Info("Import cancelled."); }
-        catch (Exception ex) { AppLogger.Error("Import failed.", ex); MessageBox.Show(ex.Message, "Import error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
+        catch (Exception ex) { AppLogger.Error("Import failed.", ex); ThemedMessageBox.Show(ex.Message, "Import error", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally { SetBusy(false); }
     }
 
@@ -186,7 +187,7 @@ public partial class Form1 : Form
         if (preview.FileCount == 0) return;
         using (var previewDialog = new ApplyPreviewForm(preview))
         {
-            ThemeService.Apply(previewDialog, _settings.Theme);
+            ThemeService.Apply(previewDialog);
             if (previewDialog.ShowDialog(this) != DialogResult.OK || !previewDialog.Confirmed) return;
         }
 
@@ -206,14 +207,14 @@ public partial class Form1 : Form
             _session.NotifyChanged();
             QueueLocationResolution(succeeded);
             using var report = new ApplyReportForm(result);
-            ThemeService.Apply(report, _settings.Theme);
+            ThemeService.Apply(report);
             report.ShowDialog(this);
         }
         catch (OperationCanceledException) { AppLogger.Info("Apply cancelled."); }
         catch (Exception ex)
         {
             AppLogger.Error("Apply failed.", ex);
-            MessageBox.Show(ex.Message, "Apply error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ThemedMessageBox.Show(ex.Message, "Apply error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally { SetBusy(false); }
     }
@@ -249,7 +250,7 @@ public partial class Form1 : Form
         if (query.Length < 2)
         {
             if (showNoResultMessage)
-                MessageBox.Show("Saisissez au moins deux caractères pour rechercher un lieu.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ThemedMessageBox.Show("Saisissez au moins deux caractères pour rechercher un lieu.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -267,7 +268,7 @@ public partial class Form1 : Form
             PopulateGpsSuggestions(results, query);
             operationStatus.Text = results.Count == 0 ? "Aucun lieu trouvé." : $"{results.Count} lieu(x) proposé(s).";
             if (results.Count == 0 && showNoResultMessage)
-                MessageBox.Show("Aucun lieu trouvé.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                ThemedMessageBox.Show("Aucun lieu trouvé.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (OperationCanceledException) { AppLogger.Info("Geocoding cancelled."); }
         catch (Exception ex)
@@ -275,7 +276,7 @@ public partial class Form1 : Form
             AppLogger.Error("Geocoding failed.", ex);
             operationStatus.Text = "Échec de la recherche du lieu.";
             if (showNoResultMessage)
-                MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ThemedMessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -541,7 +542,7 @@ public partial class Form1 : Form
         removeFromSessionMenuItem.Click += (_, _) => RemoveSelectedFromSession();
         exitMenuItem.Click += (_, _) => Close();
         guideMenuItem.Click += (_, _) => OpenExternal("https://github.com/fatvicbart/exif-tweaker/blob/main/GUIDE_UTILISATEUR.md");
-        logsMenuItem.Click += (_, _) => OpenLogsDirectory();
+        logsMenuItem.Click += (_, _) => ShowLogs();
         verifyExifToolMenuItem.Click += async (_, _) => await VerifyExifToolAsync();
         checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync();
         aboutMenuItem.Click += (_, _) => ShowAbout();
@@ -606,7 +607,7 @@ public partial class Form1 : Form
         var dates = selected.Select(item => item.EffectiveCaptureDate).Distinct().ToList();
         var offsets = selected.Select(item => item.EffectiveOffset).Distinct().ToList();
         using var dialog = new DateEditorForm(dates.Count == 1 ? dates[0] : null, offsets.Count == 1 ? offsets[0] : null, dates.Count > 1 || offsets.Count > 1);
-        ThemeService.Apply(dialog, _settings.Theme);
+        ThemeService.Apply(dialog);
         if (dialog.ShowDialog(this) == DialogResult.OK && dialog.Request is not null)
             _sessionController.EditDate(selected, dialog.Request);
     }
@@ -615,11 +616,11 @@ public partial class Form1 : Form
     {
         using var dialog = new SettingsForm(_settings);
         if (dialog.ShowDialog(this) != DialogResult.OK) return;
-        ThemeService.Apply(this, _settings.Theme);
-        ThemeService.Apply(_gpsSuggestionsPopup, _settings.Theme);
+        ThemeService.Apply(this);
+        ThemeService.Apply(_gpsSuggestionsPopup);
         try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
         catch (Exception ex) { AppLogger.Error("Map reconfiguration failed.", ex); }
-        MessageBox.Show("Settings saved. Restart the application after changing the ExifTool path.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        ThemedMessageBox.Show("Settings saved. Restart the application after changing the ExifTool path.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ToggleMap()
@@ -706,7 +707,7 @@ public partial class Form1 : Form
             operationStatus.Text = "Coordonnées GPS copiées.";
             UpdateCommandState();
         }
-        catch (Exception ex) { MessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        catch (Exception ex) { ThemedMessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
     }
 
     private void PasteGpsSelected()
@@ -729,7 +730,7 @@ public partial class Form1 : Form
                 : null);
         if (location is null)
         {
-            MessageBox.Show("Choisissez un point sur la carte ou sélectionnez une photo géolocalisée.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ThemedMessageBox.Show("Choisissez un point sur la carte ou sélectionnez une photo géolocalisée.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
@@ -755,7 +756,7 @@ public partial class Form1 : Form
             {
                 operationStatus.Text = "Aucune adresse trouvée pour ce point.";
                 if (showNoResultMessage)
-                    MessageBox.Show("Aucune adresse trouvée pour ces coordonnées.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    ThemedMessageBox.Show("Aucune adresse trouvée pour ces coordonnées.", "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
 
@@ -772,7 +773,7 @@ public partial class Form1 : Form
             AppLogger.Error("Reverse geocoding failed.", ex);
             operationStatus.Text = "Impossible d’identifier ce point.";
             if (showNoResultMessage)
-                MessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                ThemedMessageBox.Show(ex.Message, "Geocoding error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
     }
 
@@ -869,7 +870,7 @@ public partial class Form1 : Form
     private async Task RestoreSelectedAsync()
     {
         var selected = SelectedItems;
-        if (selected.Count == 0 || MessageBox.Show("Restore selected files from their ExifTool backups?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
+        if (selected.Count == 0 || ThemedMessageBox.Show("Restore selected files from their ExifTool backups?", "Restore backup", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) return;
         SetBusy(true);
         try
         {
@@ -883,14 +884,14 @@ public partial class Form1 : Form
             _session.NotifyChanged();
             QueueLocationResolution(selected);
             using var report = new ApplyReportForm(result) { Text = "Restore report" };
-            ThemeService.Apply(report, _settings.Theme);
+            ThemeService.Apply(report);
             report.ShowDialog(this);
         }
         catch (OperationCanceledException) { AppLogger.Info("Restore cancelled."); }
         catch (Exception ex)
         {
             AppLogger.Error("Restore failed.", ex);
-            MessageBox.Show(ex.Message, "Restore error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ThemedMessageBox.Show(ex.Message, "Restore error", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally { SetBusy(false); }
     }
@@ -978,11 +979,11 @@ public partial class Form1 : Form
         operationStatus.Enabled = true;
     }
 
-    private void OpenLogsDirectory()
+    private void ShowLogs()
     {
-        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ExifTweaker", "logs");
-        Directory.CreateDirectory(directory);
-        OpenExternal(directory);
+        using var dialog = new LogViewerForm();
+        ThemeService.Apply(dialog);
+        dialog.ShowDialog(this);
     }
 
     private static void OpenExternal(string target)
@@ -994,7 +995,7 @@ public partial class Form1 : Form
         catch (Exception ex)
         {
             AppLogger.Error($"Unable to open {target}.", ex);
-            MessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            ThemedMessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 
@@ -1004,7 +1005,7 @@ public partial class Form1 : Form
         {
             SetBusy(true);
             var version = await _exifTool.GetVersionAsync(StartOperation());
-            MessageBox.Show($"ExifTool {version} is available.\n\n{_exifTool.ExecutablePath}", "ExifTool verification", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            ThemedMessageBox.Show($"ExifTool {version} is available.\n\n{_exifTool.ExecutablePath}", "ExifTool verification", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
         catch (OperationCanceledException)
         {
@@ -1013,7 +1014,7 @@ public partial class Form1 : Form
         catch (Exception ex)
         {
             AppLogger.Error("ExifTool verification failed.", ex);
-            MessageBox.Show(ex.Message, "ExifTool unavailable", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ThemedMessageBox.Show(ex.Message, "ExifTool unavailable", MessageBoxButtons.OK, MessageBoxIcon.Error);
         }
         finally
         {
@@ -1024,7 +1025,7 @@ public partial class Form1 : Form
     private static void ShowAbout()
     {
         var version = typeof(Form1).Assembly.GetName().Version?.ToString(3) ?? "unknown";
-        MessageBox.Show($"ExifTweaker {version}\n\nBatch date, timezone and GPS metadata editor powered by ExifTool.", "About ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        ThemedMessageBox.Show($"ExifTweaker {version}\n\nBatch date, timezone and GPS metadata editor powered by ExifTool.", "About ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void UpdateSessionCaption()
@@ -1037,21 +1038,18 @@ public partial class Form1 : Form
         UpdateCommandState();
     }
 
-    protected override void WndProc(ref Message message)
+    private async void OnThemeChanged(object? sender, EventArgs e)
     {
-        base.WndProc(ref message);
-        if (message.Msg == 0x001A && _settings.Theme == AppThemeMode.Automatic)
-        {
-            ThemeService.Apply(this, _settings.Theme);
-            ThemeService.Apply(_gpsSuggestionsPopup, _settings.Theme);
-            _ = _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme));
-        }
+        if (IsDisposed) return;
+        ThemeService.Apply(_gpsSuggestionsPopup);
+        try { await _map.SetThemeAsync(ThemeService.IsDarkNow); }
+        catch (Exception ex) { AppLogger.Error("Map theme update failed.", ex); }
     }
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         if (e.CloseReason == CloseReason.UserClosing && _session.HasPendingChanges &&
-            MessageBox.Show("Pending metadata changes have not been applied. Close anyway?", "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+            ThemedMessageBox.Show("Pending metadata changes have not been applied. Close anyway?", "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
         {
             e.Cancel = true;
             return;
@@ -1064,6 +1062,7 @@ public partial class Form1 : Form
 
     protected override void OnFormClosed(FormClosedEventArgs e)
     {
+        ThemeService.ThemeChanged -= OnThemeChanged;
         _operationCts?.Dispose();
         _gpsSearchTimer.Stop();
         _gpsSearchTimer.Dispose();

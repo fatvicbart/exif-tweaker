@@ -6,12 +6,14 @@ namespace ExifTweaker.Forms;
 public sealed partial class SettingsForm : Form
 {
     private readonly AppSettings _settings;
+    private readonly AppThemeMode _originalTheme;
 
     public SettingsForm(AppSettings settings)
     {
         _settings = settings;
+        _originalTheme = settings.Theme;
         InitializeComponent();
-        theme.SelectedIndexChanged += (_, _) => ThemeService.Apply(this, SelectedTheme);
+        theme.SelectedIndexChanged += (_, _) => ThemeService.SetMode(SelectedTheme);
         provider.Items.AddRange(new object[] { "Maps.co", "Nominatim" });
         provider.SelectedItem = provider.Items.Cast<string>().FirstOrDefault(x => x.Equals(settings.GeocodingProvider, StringComparison.OrdinalIgnoreCase)) ?? "Nominatim";
         apiKey.Text = settings.MapsCoApiKey ?? string.Empty;
@@ -22,7 +24,7 @@ public sealed partial class SettingsForm : Form
         diskCache.Checked = settings.ThumbnailDiskCache;
         mapTiles.Text = settings.MapTileUrl;
         theme.SelectedIndex = settings.Theme switch { AppThemeMode.Light => 1, AppThemeMode.Dark => 2, _ => 0 };
-        ThemeService.Apply(this, settings.Theme);
+        ThemeService.Apply(this);
         autoUpdates.Checked = settings.CheckForUpdatesAutomatically;
         prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
         installedVersion.Text = $"Version {new UpdateService(settings).DisplayVersion}";
@@ -38,7 +40,13 @@ public sealed partial class SettingsForm : Form
     protected override void OnShown(EventArgs e)
     {
         base.OnShown(e);
-        ThemeService.Apply(this, _settings.Theme);
+        ThemeService.Apply(this);
+    }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        if (DialogResult != DialogResult.OK) ThemeService.SetMode(_originalTheme);
+        base.OnFormClosed(e);
     }
 
     private void saveButton_Click(object? sender, EventArgs e)

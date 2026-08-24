@@ -27,7 +27,7 @@ public sealed class UpdateService
             if (!manager.IsInstalled)
             {
                 if (manual)
-                    MessageBox.Show(owner,
+                    ThemedMessageBox.Show(owner,
                         "La recherche de mises à jour est disponible après installation avec le Setup ExifTweaker.\n\n" +
                         "Une exécution depuis Visual Studio ou depuis l’ancienne archive ZIP n’est pas une installation Velopack.",
                         "Mises à jour ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -39,7 +39,7 @@ public sealed class UpdateService
             if (update is null)
             {
                 if (manual)
-                    MessageBox.Show(owner, $"ExifTweaker {DisplayVersion} est à jour.", "Mises à jour ExifTweaker",
+                    ThemedMessageBox.Show(owner, $"ExifTweaker {DisplayVersion} est à jour.", "Mises à jour ExifTweaker",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -50,7 +50,7 @@ public sealed class UpdateService
                 : target.NotesMarkdown.Trim();
             if (notes.Length > 1800) notes = notes[..1800] + "\n…";
 
-            var answer = MessageBox.Show(owner,
+            var answer = ThemedMessageBox.Show(owner,
                 $"Une nouvelle version d’ExifTweaker est disponible.\n\n" +
                 $"Version installée : {manager.CurrentVersion ?? SemanticVersion.Parse(DisplayVersion)}\n" +
                 $"Nouvelle version : {target.Version}\n" +
@@ -62,7 +62,7 @@ public sealed class UpdateService
             if (answer != DialogResult.Yes) return;
 
             using var progress = new UpdateProgressForm(target.Version.ToString());
-            ThemeService.Apply(progress, _settings.Theme);
+            ThemeService.Apply(progress);
             progress.Show(owner);
             progress.Refresh();
 
@@ -79,7 +79,7 @@ public sealed class UpdateService
                 if (!progress.IsDisposed) progress.Close();
             }
 
-            var restart = MessageBox.Show(owner,
+            var restart = ThemedMessageBox.Show(owner,
                 "La mise à jour est téléchargée et vérifiée.\n\nExifTweaker doit maintenant redémarrer pour terminer l’installation.",
                 "Mise à jour prête", MessageBoxButtons.OKCancel, MessageBoxIcon.Information);
             if (restart == DialogResult.OK)
@@ -90,7 +90,7 @@ public sealed class UpdateService
         {
             AppLogger.Error("Update check failed.", ex);
             if (manual)
-                MessageBox.Show(owner, "Impossible de rechercher ou télécharger la mise à jour.\n\n" + ex.Message,
+                ThemedMessageBox.Show(owner, "Impossible de rechercher ou télécharger la mise à jour.\n\n" + ex.Message,
                     "Mises à jour ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }

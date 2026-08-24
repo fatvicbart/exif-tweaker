@@ -1,3 +1,4 @@
+using ExifTweaker.Infrastructure;
 using Velopack;
 
 namespace ExifTweaker
@@ -11,7 +12,7 @@ namespace ExifTweaker
             VelopackApp.Build().SetAutoApplyOnStartup(false).Run();
 
             ApplicationConfiguration.Initialize();
-            Application.SetColorMode(SystemColorMode.System);
+            ThemeService.SetMode(AppSettings.Load().Theme);
             Application.Run(new Form1());
         }
     }
