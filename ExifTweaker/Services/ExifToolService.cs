@@ -41,6 +41,43 @@ public sealed class ExifToolService
         return result;
     }
 
+    public async Task<IReadOnlyList<ExifTagInfo>> ReadAllMetadataAsync(string filePath, CancellationToken ct = default)
+    {
+        EnsureAvailable();
+        var output = await RunAsync(new[] { "-json", "-G1", "-a", "-s", Path.GetFullPath(filePath) }, ct);
+        return ParseAllMetadataJson(output);
+    }
+
+    internal static IReadOnlyList<ExifTagInfo> ParseAllMetadataJson(string output)
+    {
+        using var document = JsonDocument.Parse(output);
+        if (document.RootElement.ValueKind != JsonValueKind.Array)
+            throw new InvalidOperationException("ExifTool JSON output is not an array.");
+        var item = document.RootElement.EnumerateArray().FirstOrDefault();
+        if (item.ValueKind != JsonValueKind.Object) return Array.Empty<ExifTagInfo>();
+
+        return item.EnumerateObject()
+            .Select(property =>
+            {
+                var separator = property.Name.IndexOf(':');
+                var group = separator > 0 ? property.Name[..separator] : "Fichier";
+                var name = separator > 0 ? property.Name[(separator + 1)..] : property.Name;
+                return new ExifTagInfo(group, name, FormatMetadataValue(property.Value));
+            })
+            .OrderBy(tag => tag.Group, StringComparer.CurrentCultureIgnoreCase)
+            .ThenBy(tag => tag.Name, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+    }
+
+    private static string FormatMetadataValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString() ?? string.Empty,
+        JsonValueKind.Array => string.Join(", ", value.EnumerateArray().Select(FormatMetadataValue)),
+        JsonValueKind.Object => JsonSerializer.Serialize(value),
+        JsonValueKind.Null or JsonValueKind.Undefined => string.Empty,
+        _ => value.GetRawText()
+    };
+
     public async Task<string?> WriteAsync(PhotoItem item, bool backupOriginal = true, CancellationToken ct = default)
     {
         EnsureAvailable();

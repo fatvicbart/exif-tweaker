@@ -6,7 +6,7 @@ public enum BackupStrategy { ExifToolOriginal, OverwriteOriginal }
 
 public sealed class AppSettings
 {
-    public string GeocodingProvider { get; set; } = "Maps.co";
+    public string GeocodingProvider { get; set; } = "Nominatim";
     public string? MapsCoApiKey { get; set; }
     public string? ExifToolPath { get; set; }
     public BackupStrategy BackupStrategy { get; set; } = BackupStrategy.ExifToolOriginal;
@@ -56,7 +56,7 @@ public sealed class AppSettings
         MapsCoApiKey = Environment.GetEnvironmentVariable("EXIFTWEAKER_MAPSCO_API_KEY") ?? MapsCoApiKey;
         ExifToolPath = Environment.GetEnvironmentVariable("EXIFTWEAKER_EXIFTOOL_PATH") ?? ExifToolPath;
         MaxParallelism = Math.Clamp(MaxParallelism, 1, 16);
-        GeocodingProvider = string.IsNullOrWhiteSpace(GeocodingProvider) ? "Maps.co" : GeocodingProvider;
+        GeocodingProvider = string.IsNullOrWhiteSpace(GeocodingProvider) ? "Nominatim" : GeocodingProvider;
         MapTileUrl = string.IsNullOrWhiteSpace(MapTileUrl) ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" : MapTileUrl;
         return this;
     }

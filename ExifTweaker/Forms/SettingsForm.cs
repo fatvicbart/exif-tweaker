@@ -12,7 +12,7 @@ public sealed partial class SettingsForm : Form
         _settings = settings;
         InitializeComponent();
         provider.Items.AddRange(new object[] { "Maps.co", "Nominatim" });
-        provider.SelectedItem = provider.Items.Cast<string>().FirstOrDefault(x => x.Equals(settings.GeocodingProvider, StringComparison.OrdinalIgnoreCase)) ?? "Maps.co";
+        provider.SelectedItem = provider.Items.Cast<string>().FirstOrDefault(x => x.Equals(settings.GeocodingProvider, StringComparison.OrdinalIgnoreCase)) ?? "Nominatim";
         apiKey.Text = settings.MapsCoApiKey ?? string.Empty;
         exifToolPath.Text = settings.ExifToolPath ?? string.Empty;
         backup.SelectedIndex = settings.BackupStrategy == BackupStrategy.ExifToolOriginal ? 0 : 1;
@@ -27,7 +27,7 @@ public sealed partial class SettingsForm : Form
 
     private void saveButton_Click(object? sender, EventArgs e)
     {
-        _settings.GeocodingProvider = provider.SelectedItem?.ToString() ?? "Maps.co";
+        _settings.GeocodingProvider = provider.SelectedItem?.ToString() ?? "Nominatim";
         _settings.MapsCoApiKey = string.IsNullOrWhiteSpace(apiKey.Text) ? null : apiKey.Text.Trim();
         _settings.ExifToolPath = string.IsNullOrWhiteSpace(exifToolPath.Text) ? null : exifToolPath.Text.Trim();
         _settings.BackupStrategy = backup.SelectedIndex == 0 ? BackupStrategy.ExifToolOriginal : BackupStrategy.OverwriteOriginal;

@@ -20,11 +20,14 @@ partial class Form1
     private ToolStripMenuItem selectAllMenuItem = null!;
     private ToolStripMenuItem findGpsMenuItem = null!;
     private ToolStripMenuItem previewMenuItem = null!;
+    private ToolStripMenuItem informationMenuItem = null!;
+    private ToolStripMenuItem quickActionsMenuItem = null!;
     private ToolStripMenuItem applyMenuItem = null!;
     private ToolStripMenuItem cancelMenuItem = null!;
     private ToolStripMenuItem guideMenuItem = null!;
     private ToolStripMenuItem logsMenuItem = null!;
     private ToolStripMenuItem verifyExifToolMenuItem = null!;
+    private ToolStripMenuItem checkUpdatesMenuItem = null!;
     private ToolStripMenuItem aboutMenuItem = null!;
 
     private ToolStripDropDownButton openQuickCommand = null!;
@@ -66,11 +69,15 @@ partial class Form1
         selectAllMenuItem = MenuItem("Tout &sélectionner", "selectAllMenuItem", Keys.Control | Keys.A);
         findGpsMenuItem = MenuItem("&Rechercher un lieu…", "findGpsMenuItem");
         previewMenuItem = MenuItem("Afficher l’&aperçu", "previewMenuItem");
+        informationMenuItem = MenuItem("Afficher les &informations", "informationMenuItem");
+        quickActionsMenuItem = MenuItem("Afficher la barre d’actions &rapides", "quickActionsMenuItem");
+        quickActionsMenuItem.Checked = true;
         applyMenuItem = MenuItem("Vérifier et appliquer", "applyMenuItem");
         cancelMenuItem = MenuItem("Annuler l’opération", "cancelMenuItem");
         guideMenuItem = MenuItem("&Guide utilisateur", "guideMenuItem", Keys.F1);
         logsMenuItem = MenuItem("Ouvrir le dossier des &journaux", "logsMenuItem");
         verifyExifToolMenuItem = MenuItem("&Vérifier ExifTool", "verifyExifToolMenuItem");
+        checkUpdatesMenuItem = MenuItem("Rechercher les &mises à jour…", "checkUpdatesMenuItem");
         aboutMenuItem = MenuItem("À &propos d’ExifTweaker", "aboutMenuItem");
 
         ConfigureExistingMenuCommands();
@@ -103,12 +110,12 @@ partial class Form1
         });
         viewMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
-            previewMenuItem, mapCommand, new ToolStripSeparator(), filterMenu
+            previewMenuItem, mapCommand, informationMenuItem, new ToolStripSeparator(), quickActionsMenuItem, new ToolStripSeparator(), filterMenu
         });
         actionsMenu.DropDownItems.AddRange(new ToolStripItem[] { applyMenuItem, cancelMenuItem });
         helpMenu.DropDownItems.AddRange(new ToolStripItem[]
         {
-            guideMenuItem, logsMenuItem, verifyExifToolMenuItem, new ToolStripSeparator(), aboutMenuItem
+            guideMenuItem, logsMenuItem, verifyExifToolMenuItem, checkUpdatesMenuItem, new ToolStripSeparator(), aboutMenuItem
         });
         navigationMenu.Items.AddRange(new ToolStripItem[]
         {

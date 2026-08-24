@@ -35,6 +35,8 @@ public partial class Form1 : Form
     private CancellationTokenSource? _gpsSearchCts;
     private bool _gpsSearchInProgress;
     private bool _updatingGpsSuggestions;
+    private readonly ListBox _gpsSuggestions = new() { DisplayMember = nameof(Coordinates.Name), IntegralHeight = false };
+    private readonly ToolStripDropDown _gpsSuggestionsPopup = new() { AutoClose = false, Padding = System.Windows.Forms.Padding.Empty };
     private GpsCoordinate? _currentLocation;
     private string _currentLocationName = string.Empty;
     private CancellationTokenSource? _currentLocationLookupCts;
@@ -42,6 +44,10 @@ public partial class Form1 : Form
     private readonly SemaphoreSlim _locationResolutionLock = new(1, 1);
     private readonly ConcurrentDictionary<string, string> _locationAddressCache = new();
     private CancellationTokenSource? _operationCts;
+    private readonly InformationControl _informationView = new();
+    private readonly ConcurrentDictionary<string, (DateTime LastWriteUtc, IReadOnlyList<ExifTagInfo> Tags)> _informationCache = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _informationCts;
+    private PhotoItem? _activeItem;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
         .Select(row => row.DataBoundItem as PhotoItem)
@@ -60,6 +66,9 @@ public partial class Form1 : Form
         _updates = new UpdateService(_settings);
         _sessionController = new SessionController(_session, _history);
         InitializeComponent();
+        splitContainer1.Panel2.Controls.Add(_informationView);
+        _informationView.Visible = false;
+        InitializeGpsSuggestionsPopup();
         InitializeNavigation();
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
@@ -67,7 +76,6 @@ public partial class Form1 : Form
         bChange.AccessibleDescription = "Prépare la date et les coordonnées GPS affichées";
         bOpen.Text = "FICHIERS…";
         bGPS.Text = "RECHERCHER";
-        tGPS.DisplayMember = nameof(Coordinates.Name);
         WireCommands();
         UpdateMapChecks();
         _map.BringToFront();
@@ -188,7 +196,11 @@ public partial class Form1 : Form
             var result = await _metadata.ApplyPendingChangesAsync(photos, progress, ct);
             var succeeded = photos.Where(photo => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(photo.FilePath, StringComparison.OrdinalIgnoreCase))).ToList();
             _history.Forget(succeeded);
-            foreach (var item in succeeded) _thumbnails.Invalidate(item.FilePath);
+            foreach (var item in succeeded)
+            {
+                _thumbnails.Invalidate(item.FilePath);
+                _informationCache.TryRemove(item.FilePath, out _);
+            }
             _session.NotifyChanged();
             QueueLocationResolution(succeeded);
             using var report = new ApplyReportForm(result);
@@ -217,9 +229,9 @@ public partial class Form1 : Form
         tName.Clear();
         _gpsSearchTimer.Stop();
         _gpsSearchCts?.Cancel();
+        ClearGpsSuggestions();
         if (tGPS.Text.Trim().Length < 2)
         {
-            ClearGpsSuggestions();
             UpdateCommandState();
             return;
         }
@@ -272,82 +284,82 @@ public partial class Form1 : Form
         }
     }
 
-    private void PopulateGpsSuggestions(IReadOnlyList<Coordinates> results, string query)
+    private void InitializeGpsSuggestionsPopup()
     {
-        var caretPosition = Math.Clamp(tGPS.SelectionStart, 0, query.Length);
-        _updatingGpsSuggestions = true;
-        try
-        {
-            tGPS.BeginUpdate();
-            tGPS.Items.Clear();
-            foreach (var result in results) tGPS.Items.Add(result);
-            tGPS.SelectedIndex = -1;
-            if (!tGPS.Text.Equals(query, StringComparison.Ordinal)) tGPS.Text = query;
-            tGPS.DroppedDown = results.Count > 0 && tGPS.Focused;
-            RestoreGpsSearchCaret(query, caretPosition);
-        }
-        finally
-        {
-            tGPS.EndUpdate();
-            _updatingGpsSuggestions = false;
-        }
-
-        if (!IsDisposed && IsHandleCreated)
-            BeginInvoke(() => RestoreGpsSearchCaret(query, caretPosition));
+        var host = new ToolStripControlHost(_gpsSuggestions) { AutoSize = false, Margin = Padding.Empty, Padding = System.Windows.Forms.Padding.Empty };
+        _gpsSuggestionsPopup.Items.Add(host);
+        _gpsSuggestions.MouseClick += (_, _) => SelectGpsSuggestion();
     }
 
-    private void RestoreGpsSearchCaret(string expectedText, int caretPosition)
+    private void PopulateGpsSuggestions(IReadOnlyList<Coordinates> results, string query)
     {
-        if (IsDisposed || !tGPS.Text.Equals(expectedText, StringComparison.Ordinal)) return;
-        tGPS.SelectionStart = Math.Clamp(caretPosition, 0, tGPS.Text.Length);
-        tGPS.SelectionLength = 0;
+        if (!tGPS.Text.Trim().Equals(query, StringComparison.Ordinal)) return;
+        var selectionStart = tGPS.SelectionStart;
+        var selectionLength = tGPS.SelectionLength;
+        _gpsSuggestions.BeginUpdate();
+        try
+        {
+            _gpsSuggestions.Items.Clear();
+            foreach (var result in results) _gpsSuggestions.Items.Add(result);
+            _gpsSuggestions.SelectedIndex = -1;
+        }
+        finally { _gpsSuggestions.EndUpdate(); }
+
+        if (results.Count == 0 || !tGPS.Focused)
+        {
+            _gpsSuggestionsPopup.Close();
+            return;
+        }
+        var width = Math.Max(tGPS.Width, 280);
+        var height = Math.Min(240, Math.Max(_gpsSuggestions.ItemHeight, results.Count * _gpsSuggestions.ItemHeight + 4));
+        _gpsSuggestions.Size = new Size(width, height);
+        if (_gpsSuggestionsPopup.Items[0] is ToolStripControlHost host) host.Size = _gpsSuggestions.Size;
+        _gpsSuggestionsPopup.Size = _gpsSuggestions.Size;
+        if (!_gpsSuggestionsPopup.Visible) _gpsSuggestionsPopup.Show(tGPS, new Point(0, tGPS.Height));
+        tGPS.Focus();
+        tGPS.SelectionStart = Math.Clamp(selectionStart, 0, tGPS.Text.Length);
+        tGPS.SelectionLength = Math.Clamp(selectionLength, 0, tGPS.Text.Length - tGPS.SelectionStart);
     }
 
     private void ClearGpsSuggestions()
     {
-        if (tGPS.Items.Count == 0)
-        {
-            if (tGPS.DroppedDown) tGPS.DroppedDown = false;
-            return;
-        }
-
-        var text = tGPS.Text;
-        var selectionStart = tGPS.SelectionStart;
-        var selectionLength = tGPS.SelectionLength;
-        _updatingGpsSuggestions = true;
-        try
-        {
-            tGPS.DroppedDown = false;
-            tGPS.BeginUpdate();
-            tGPS.Items.Clear();
-            tGPS.SelectedIndex = -1;
-            if (!tGPS.Text.Equals(text, StringComparison.Ordinal)) tGPS.Text = text;
-        }
-        finally
-        {
-            tGPS.EndUpdate();
-            _updatingGpsSuggestions = false;
-        }
-
-        RestoreGpsSearchSelection(text, selectionStart, selectionLength);
-        if (!IsDisposed && IsHandleCreated)
-            BeginInvoke(() => RestoreGpsSearchSelection(text, selectionStart, selectionLength));
-    }
-
-    private void RestoreGpsSearchSelection(string expectedText, int selectionStart, int selectionLength)
-    {
-        if (IsDisposed || !tGPS.Text.Equals(expectedText, StringComparison.Ordinal)) return;
-        selectionStart = Math.Clamp(selectionStart, 0, tGPS.Text.Length);
-        tGPS.SelectionStart = selectionStart;
-        tGPS.SelectionLength = Math.Clamp(selectionLength, 0, tGPS.Text.Length - selectionStart);
+        _gpsSuggestionsPopup.Close();
+        _gpsSuggestions.Items.Clear();
     }
 
     private void SelectGpsSuggestion()
     {
-        if (_updatingGpsSuggestions || tGPS.SelectedItem is not Coordinates selected) return;
+        if (_gpsSuggestions.SelectedItem is not Coordinates selected) return;
+        _gpsSuggestionsPopup.Close();
         SetGpsSearchTextSilently(selected.Name);
         SetCurrentLocation(new GpsCoordinate(selected.Latitude, selected.Longitude, selected.Altitude), selected.Name);
         operationStatus.Text = "Lieu sélectionné. Sélectionnez les médias puis cliquez sur PRÉPARER.";
+    }
+
+    private void GpsSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.KeyCode == Keys.Escape && _gpsSuggestionsPopup.Visible)
+        {
+            _gpsSuggestionsPopup.Close();
+            e.SuppressKeyPress = true;
+            return;
+        }
+        if (!_gpsSuggestionsPopup.Visible || _gpsSuggestions.Items.Count == 0) return;
+        if (e.KeyCode == Keys.Down)
+        {
+            _gpsSuggestions.SelectedIndex = Math.Min(_gpsSuggestions.Items.Count - 1, _gpsSuggestions.SelectedIndex + 1);
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.Up)
+        {
+            _gpsSuggestions.SelectedIndex = Math.Max(0, _gpsSuggestions.SelectedIndex - 1);
+            e.SuppressKeyPress = true;
+        }
+        else if (e.KeyCode == Keys.Enter && _gpsSuggestions.SelectedIndex >= 0)
+        {
+            SelectGpsSuggestion();
+            e.SuppressKeyPress = true;
+        }
     }
 
     private void SetCurrentLocation(GpsCoordinate location, string? name)
@@ -470,8 +482,8 @@ public partial class Form1 : Form
             _gpsSearchTimer.Stop();
             await SearchGpsSuggestionsAsync(showNoResultMessage: false);
         };
-        tGPS.TextUpdate += (_, _) => ScheduleGpsSearch();
-        tGPS.SelectionChangeCommitted += (_, _) => SelectGpsSuggestion();
+        tGPS.TextChanged += (_, _) => ScheduleGpsSearch();
+        tGPS.KeyDown += GpsSearchKeyDown;
         Command("applyCommand").Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
         openFilesMenuItem.Click += button2_Click;
@@ -506,6 +518,8 @@ public partial class Form1 : Form
         Command("mapCommand").Click += (_, _) => ToggleMap();
         mapQuickCommand.Click += (_, _) => ToggleMap();
         previewMenuItem.Click += (_, _) => ShowPreview();
+        informationMenuItem.Click += async (_, _) => await ShowInformationAsync();
+        quickActionsMenuItem.Click += (_, _) => ToggleQuickActions();
         Command("allFilterCommand").Click += (_, _) => ApplyFilter("Tous", _ => true);
         Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter("Modifiés", item => item.PendingChanges.HasChanges);
         Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
@@ -523,8 +537,36 @@ public partial class Form1 : Form
         guideMenuItem.Click += (_, _) => OpenExternal("https://github.com/fatvicbart/exif-tweaker/blob/main/GUIDE_UTILISATEUR.md");
         logsMenuItem.Click += (_, _) => OpenLogsDirectory();
         verifyExifToolMenuItem.Click += async (_, _) => await VerifyExifToolAsync();
+        checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync();
         aboutMenuItem.Click += (_, _) => ShowAbout();
-        dgv.SelectionChanged += (_, _) => UpdateCommandState();
+        dgv.SelectionChanged += async (_, _) => await ActiveSelectionChangedAsync();
+    }
+
+    private async Task ActiveSelectionChangedAsync()
+    {
+        UpdateCommandState();
+        _activeItem = dgv.CurrentRow?.DataBoundItem as PhotoItem;
+        if (_activeItem is null)
+        {
+            _informationCts?.Cancel();
+            _informationView.ShowEmpty();
+            return;
+        }
+        DisplayActiveMetadata(_activeItem);
+        if (_informationView.Visible) await LoadInformationAsync(_activeItem);
+    }
+
+    private void ToggleQuickActions()
+    {
+        commands.Visible = !commands.Visible;
+        quickActionsMenuItem.Checked = commands.Visible;
+    }
+
+    private async Task CheckForUpdatesAsync()
+    {
+        checkUpdatesMenuItem.Enabled = false;
+        try { await _updates.CheckAndPromptAsync(this, manual: true); }
+        finally { if (!IsDisposed) checkUpdatesMenuItem.Enabled = true; }
     }
 
     private void ApplyFilter(string name, Func<PhotoItem, bool> predicate)
@@ -573,18 +615,60 @@ public partial class Form1 : Form
 
     private void ToggleMap()
     {
-        _map.Visible = !_map.Visible;
-        if (_map.Visible) _map.BringToFront();
+        var showMap = !_map.Visible;
+        _informationView.Visible = false;
+        _map.Visible = showMap;
+        if (showMap) _map.BringToFront();
+        else picBox.BringToFront();
         UpdateMapChecks();
         RefreshMapMarkers();
     }
 
-
     private void ShowPreview()
     {
         _map.Visible = false;
+        _informationView.Visible = false;
         picBox.BringToFront();
         UpdateMapChecks();
+    }
+
+    private async Task ShowInformationAsync()
+    {
+        _map.Visible = false;
+        _informationView.Visible = true;
+        _informationView.BringToFront();
+        UpdateMapChecks();
+        _activeItem ??= dgv.CurrentRow?.DataBoundItem as PhotoItem;
+        if (_activeItem is null) _informationView.ShowEmpty();
+        else await LoadInformationAsync(_activeItem);
+    }
+
+    private async Task LoadInformationAsync(PhotoItem item)
+    {
+        _informationCts?.Cancel();
+        _informationCts?.Dispose();
+        var cts = new CancellationTokenSource();
+        _informationCts = cts;
+        _informationView.ShowLoading(item.FilePath);
+        try
+        {
+            var lastWriteUtc = File.GetLastWriteTimeUtc(item.FilePath);
+            if (!_informationCache.TryGetValue(item.FilePath, out var cached) || cached.LastWriteUtc != lastWriteUtc)
+            {
+                var tags = await _exifTool.ReadAllMetadataAsync(item.FilePath, cts.Token);
+                cached = (lastWriteUtc, tags);
+                _informationCache[item.FilePath] = cached;
+            }
+            if (cts.IsCancellationRequested || !ReferenceEquals(_activeItem, item) || !_informationView.Visible) return;
+            _informationView.ShowTags(item.FilePath, cached.Tags);
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Full metadata read failed for {item.FilePath}.", ex);
+            if (!cts.IsCancellationRequested && ReferenceEquals(_activeItem, item))
+                _informationView.ShowError(item.FilePath, "Impossible de lire les métadonnées — consultez les journaux.");
+        }
     }
 
     private async Task SetLocationFromMapAsync(double latitude, double longitude)
@@ -778,7 +862,10 @@ public partial class Form1 : Form
         {
             var result = await _metadata.RestoreBackupsAsync(selected, StartOperation());
             foreach (var item in selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))))
+            {
                 _thumbnails.Invalidate(item.FilePath);
+                _informationCache.TryRemove(item.FilePath, out _);
+            }
             _history.Forget(selected.Where(item => result.Files.Any(file => file.Succeeded && file.FilePath.Equals(item.FilePath, StringComparison.OrdinalIgnoreCase))));
             _session.NotifyChanged();
             QueueLocationResolution(selected);
@@ -836,7 +923,8 @@ public partial class Form1 : Form
         if (mapQuickCommand is null) return;
         mapQuickCommand.Checked = _map.Visible;
         mapCommand.Checked = _map.Visible;
-        previewMenuItem.Checked = !_map.Visible;
+        informationMenuItem.Checked = _informationView.Visible;
+        previewMenuItem.Checked = !_map.Visible && !_informationView.Visible;
     }
 
     private void UpdateCommandState()
@@ -953,6 +1041,9 @@ public partial class Form1 : Form
         _operationCts?.Dispose();
         _gpsSearchTimer.Stop();
         _gpsSearchTimer.Dispose();
+        _gpsSuggestionsPopup.Dispose();
+        _informationCts?.Cancel();
+        _informationCts?.Dispose();
         _gpsSearchCts?.Cancel();
         _gpsSearchCts?.Dispose();
         _currentLocationLookupCts?.Dispose();
