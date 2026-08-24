@@ -8,6 +8,7 @@
     <Compile Include="..\ExifTweaker\Models\DateEditRequest.cs" Link="Source\Models\DateEditRequest.cs" />
     <Compile Include="..\ExifTweaker\Models\ImportSession.cs" Link="Source\Models\ImportSession.cs" />
     <Compile Include="..\ExifTweaker\Models\GpsCoordinate.cs" Link="Source\Models\GpsCoordinate.cs" />
+    <Compile Include="..\ExifTweaker\Models\ExifTagInfo.cs" Link="Source\Models\ExifTagInfo.cs" />
     <Compile Include="..\ExifTweaker\Models\MetadataPatch.cs" Link="Source\Models\MetadataPatch.cs" />
     <Compile Include="..\ExifTweaker\Models\PhotoItem.cs" Link="Source\Models\PhotoItem.cs" />
     <Compile Include="..\ExifTweaker\Models\PhotoMetadata.cs" Link="Source\Models\PhotoMetadata.cs" />
