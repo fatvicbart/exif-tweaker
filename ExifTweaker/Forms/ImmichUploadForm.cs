@@ -17,7 +17,8 @@ public sealed class ImmichUploadForm : Form
     public ImmichUploadRequest? Request { get; private set; }
     public bool ApplyBeforeUpload => _applyFirst.Checked;
 
-    public ImmichUploadForm(IReadOnlyList<PhotoItem> photos, IReadOnlyList<ImmichAlbum> albums, AppSettings settings, ImmichServerInfo server)
+    public ImmichUploadForm(IReadOnlyList<PhotoItem> photos, IReadOnlyList<ImmichAlbum> albums, AppSettings settings, ImmichServerInfo server,
+        string? preselectedAlbumId = null, string? preselectedNewAlbumName = null)
     {
         _albums = albums;
         _album.Items.Add(NoAlbum);
@@ -28,8 +29,15 @@ public sealed class ImmichUploadForm : Form
         _visibility.SelectedIndex = settings.ImmichDefaultVisibility switch { "archive" => 1, "hidden" => 2, "locked" => 3, _ => 0 };
         _concurrency.Value = Math.Clamp(settings.ImmichUploadConcurrency, 1, 8);
 
+        var preselected = albums.FirstOrDefault(album => album.Id == preselectedAlbumId);
         var defaultAlbum = albums.FirstOrDefault(album => album.Id == settings.ImmichDefaultAlbumId || album.Name.Equals(settings.ImmichDefaultAlbumName, StringComparison.CurrentCultureIgnoreCase));
-        if (defaultAlbum is not null) _album.SelectedItem = defaultAlbum;
+        if (preselected is not null) _album.SelectedItem = preselected;
+        else if (!string.IsNullOrWhiteSpace(preselectedNewAlbumName))
+        {
+            _album.SelectedItem = NewAlbum;
+            _newAlbum.Text = preselectedNewAlbumName;
+        }
+        else if (defaultAlbum is not null) _album.SelectedItem = defaultAlbum;
         else if (!string.IsNullOrWhiteSpace(settings.ImmichDefaultAlbumName))
         {
             _album.SelectedItem = NewAlbum;

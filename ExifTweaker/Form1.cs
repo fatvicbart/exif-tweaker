@@ -54,6 +54,7 @@ public partial class Form1 : Form
     private bool _restoringGridSelection;
     private (string FilePath, DateTime LastWriteUtc)? _informationRequest;
     private int _boundItemsUpdateDepth;
+    private bool _immichAlbumsLoaded;
     private bool _refreshInformationAfterBoundUpdate;
 
     private List<PhotoItem> SelectedItems => dgv.SelectedRows.Cast<DataGridViewRow>()
@@ -75,31 +76,39 @@ public partial class Form1 : Form
         splitContainer1.Panel2.Controls.Add(_informationView);
         _informationView.Visible = false;
         InitializeGpsSuggestionsPopup();
-        InitializeNavigation();
         ThemeService.Apply(this);
         ThemeService.Apply(_gpsSuggestionsPopup);
         ThemeService.ThemeChanged += OnThemeChanged;
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
-        bOpen.Text = "PRÉPARER LA DATE À LA SÉLECTION";
-        bGPS.Text = "PRÉPARER LE GPS À LA SÉLECTION";
+        immichAlbum.Format += (_, e) => { if (e.ListItem is ImmichAlbum album) e.Value = album.Name; };
+        immichAlbum.Items.Add(NoAlbumEntry);
+        immichAlbum.Items.Add(NewAlbumEntry);
+        immichAlbum.SelectedIndex = 0;
         WireCommands();
         UpdateMapChecks();
         _map.BringToFront();
-        _map.MapLocationChanged += async (_, point) => await SetLocationFromMapAsync(point.Latitude, point.Longitude);
-        Shown += async (_, _) =>
-        {
-            ThemeService.Apply(this);
-            try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
-            catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); ThemedMessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
-            if (_settings.CheckForUpdatesAutomatically)
-                await _updates.CheckAndPromptAsync(this, manual: false);
-        };
-        _session.PropertyChanged += (_, _) => QueueSessionRefresh();
+        _map.MapLocationChanged += MapLocationChanged;
+        Shown += Form1_Shown;
+        _session.PropertyChanged += SessionPropertyChanged;
 
         RefreshFilter();
         UpdateSessionCaption();
     }
+    private async void Form1_Shown(object? sender, EventArgs e)
+    {
+        ThemeService.Apply(this);
+        try { await _map.InitializeAsync(_settings.MapTileUrl, _settings.MapAttribution, ThemeService.IsDark(_settings.Theme)); }
+        catch (Exception ex) { AppLogger.Error("Map initialization failed.", ex); ThemedMessageBox.Show(ex.Message, "Map unavailable", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        if (_settings.CheckForUpdatesAutomatically)
+            await _updates.CheckAndPromptAsync(this, manual: false);
+    }
+
+    private async void MapLocationChanged(object? sender, MapLocationChangedEventArgs e) =>
+        await SetLocationFromMapAsync(e.Latitude, e.Longitude);
+
+    private void SessionPropertyChanged(object? sender, PropertyChangedEventArgs e) => QueueSessionRefresh();
+
     private void QueueSessionRefresh()
     {
         if (IsDisposed) return;
@@ -161,26 +170,51 @@ public partial class Form1 : Form
         operationStatus.Text = $"Date préparée pour {selected.Count} fichier(s).";
     }
 
+    private void PrepareDateForAll(object? sender, EventArgs e)
+    {
+        var all = _session.Media.ToList();
+        if (all.Count == 0 || !ConfirmBulkAction($"Appliquer cette date à l’ensemble des {all.Count} média(s) de la session ?")) return;
+        RunPreparedEdit(() => _sessionController.StageDate(all, dateTimePicker1.Value));
+        operationStatus.Text = $"Date préparée pour {all.Count} fichier(s).";
+    }
+
+    private bool ConfirmBulkAction(string message) =>
+        !_settings.ConfirmBulkPrepare ||
+        ThemedMessageBox.Show(message, "ExifTweaker", MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes;
+
     private void PrepareGpsForSelection(object? sender, EventArgs e)
     {
         var selected = SelectedItems;
-        if (selected.Count == 0 || !IsGpsInputValid || _currentLocation is not { } location) return;
+        if (selected.Count == 0) return;
+        PrepareGpsFor(selected);
+    }
+
+    private void PrepareGpsForAll(object? sender, EventArgs e)
+    {
+        var all = _session.Media.ToList();
+        if (all.Count == 0 || !ConfirmBulkAction($"Appliquer cette localisation à l’ensemble des {all.Count} média(s) de la session ?")) return;
+        PrepareGpsFor(all);
+    }
+
+    private void PrepareGpsFor(IReadOnlyList<PhotoItem> targets)
+    {
+        if (!IsGpsInputValid || _currentLocation is not { } location) return;
         RunPreparedEdit(() =>
         {
-            _sessionController.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude, _locations);
+            _sessionController.SetLocation(targets, location.Latitude, location.Longitude, location.Altitude, _locations);
             if (!string.IsNullOrWhiteSpace(_currentLocationName))
-                foreach (var item in selected) item.SetResolvedLocation(location.Latitude, location.Longitude, _currentLocationName);
+                foreach (var item in targets) item.SetResolvedLocation(location.Latitude, location.Longitude, _currentLocationName);
         });
-        if (string.IsNullOrWhiteSpace(_currentLocationName)) QueueLocationResolution(selected);
+        if (string.IsNullOrWhiteSpace(_currentLocationName)) QueueLocationResolution(targets);
         RefreshMapMarkers();
-        operationStatus.Text = $"Localisation préparée pour {selected.Count} fichier(s).";
+        operationStatus.Text = $"Localisation préparée pour {targets.Count} fichier(s).";
     }
 
     private bool IsGpsInputValid => _currentLocation is not null &&
         !string.IsNullOrWhiteSpace(_validatedGpsText) &&
         tGPS.Text.Trim().Equals(_validatedGpsText, StringComparison.Ordinal);
 
-    private async void button2_Click(object? sender, EventArgs e)
+    private async void openFiles_Click(object? sender, EventArgs e)
     {
         using var dialog = new OpenFileDialog
         {
@@ -291,7 +325,7 @@ public partial class Form1 : Form
         return appliedAll;
     }
 
-    private async void bGPS_Click(object? sender, EventArgs e)
+    private async void findGps_Click(object? sender, EventArgs e)
     {
         await SearchGpsSuggestionsAsync(showNoResultMessage: true);
     }
@@ -552,92 +586,99 @@ public partial class Form1 : Form
         return base.ProcessCmdKey(ref message, keyData);
     }
 
-    private ToolStripItem Command(string name)
-    {
-        static ToolStripItem? Find(ToolStripItemCollection items, string target)
-        {
-            foreach (ToolStripItem item in items)
-            {
-                if (item.Name == target) return item;
-                if (item is ToolStripDropDownItem dropDown && Find(dropDown.DropDownItems, target) is { } nested) return nested;
-            }
-            return null;
-        }
-
-        return Find(commands.Items, name) ?? Find(navigationMenu.Items, name) ?? throw new InvalidOperationException($"Command {name} not found.");
-    }
-
     private void WireCommands()
     {
-        _gpsSearchTimer.Tick += async (_, _) =>
-        {
-            _gpsSearchTimer.Stop();
-            await SearchGpsSuggestionsAsync(showNoResultMessage: false);
-        };
-        tGPS.TextChanged += (_, _) => ScheduleGpsSearch();
-        tGPS.KeyDown += GpsSearchKeyDown;
-        applyAllButton.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
-        applyMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(_session.Media.ToList());
-        applySelectedMenuItem.Click += async (_, _) => await ApplyPendingChangesAsync(SelectedItems);
-        uploadImmichSelectedMenuItem.Click += async (_, _) => await SendToImmichAsync(SelectedItems);
-        uploadImmichAllMenuItem.Click += async (_, _) => await SendToImmichAsync(_session.Media.ToList());
-        uploadImmichSelectedQuickItem.Click += async (_, _) => await SendToImmichAsync(SelectedItems);
-        uploadImmichAllQuickItem.Click += async (_, _) => await SendToImmichAsync(_session.Media.ToList());
-        openFilesMenuItem.Click += button2_Click;
-        openFilesQuickItem.Click += button2_Click;
-        Command("openFolderCommand").Click += async (_, _) => await OpenFolderAsync();
-        openFolderQuickItem.Click += async (_, _) => await OpenFolderAsync();
-        Command("dateEditorCommand").Click += (_, _) => OpenDateEditor();
-        dateQuickCommand.Click += (_, _) => OpenDateEditor();
-        Command("settingsCommand").Click += async (_, _) => await OpenSettingsAsync();
-        Command("cancelCommand").Click += (_, _) => _operationCts?.Cancel();
-        cancelMenuItem.Click += (_, _) => _operationCts?.Cancel();
-        Command("undoCommand").Click += (_, _) => UndoPendingChanges();
-        Command("redoCommand").Click += (_, _) => RedoPendingChanges();
-        undoMenuItem.Click += (_, _) => UndoPendingChanges();
-        redoMenuItem.Click += (_, _) => RedoPendingChanges();
-        Command("resetSelectedCommand").Click += (_, _) => ResetPatches(SelectedItems);
-        Command("resetAllCommand").Click += (_, _) => ResetPatches(_session.Media);
-        Command("minusHourCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromHours(-1));
-        Command("plusHourCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromHours(1));
-        Command("minusMinuteCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromMinutes(-1));
-        Command("plusMinuteCommand").Click += (_, _) => ShiftSelected(TimeSpan.FromMinutes(1));
-        Command("removeGpsCommand").Click += (_, _) => RemoveGpsSelected();
-        Command("copyGpsCommand").Click += (_, _) => CopyGpsSelected();
-        Command("pasteGpsCommand").Click += (_, _) => PasteGpsSelected();
-        Command("reverseGpsCommand").Click += async (_, _) => await ReverseGpsSelectedAsync();
-        findGpsMenuItem.Click += bGPS_Click;
-        findGpsQuickItem.Click += bGPS_Click;
-        copyGpsQuickItem.Click += (_, _) => CopyGpsSelected();
-        pasteGpsQuickItem.Click += (_, _) => PasteGpsSelected();
-        removeGpsQuickItem.Click += (_, _) => RemoveGpsSelected();
-        reverseGpsQuickItem.Click += async (_, _) => await ReverseGpsSelectedAsync();
-        Command("mapCommand").Click += (_, _) => ToggleMap();
-        mapQuickCommand.Click += (_, _) => ToggleMap();
-        previewMenuItem.Click += (_, _) => ShowPreview();
-        informationMenuItem.Click += async (_, _) => await ShowInformationAsync();
-        quickActionsMenuItem.Click += (_, _) => ToggleQuickActions();
-        quickActionsToggleItem.Click += (_, _) => ToggleQuickActions();
-        Command("allFilterCommand").Click += (_, _) => ApplyFilter("Tous", _ => true);
-        Command("modifiedFilterCommand").Click += (_, _) => ApplyFilter("Modifiés", item => item.HasPendingChanges);
-        Command("noGpsFilterCommand").Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
-        Command("noDateFilterCommand").Click += (_, _) => ApplyFilter("Sans date", item => !item.EffectiveCaptureDate.HasValue);
-        Command("errorsFilterCommand").Click += (_, _) => ApplyFilter("Erreurs", item => item.Error is not null);
-        allFilterQuickItem.Click += (_, _) => ApplyFilter("Tous", _ => true);
-        modifiedFilterQuickItem.Click += (_, _) => ApplyFilter("Modifiés", item => item.HasPendingChanges);
-        noGpsFilterQuickItem.Click += (_, _) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
-        noDateFilterQuickItem.Click += (_, _) => ApplyFilter("Sans date", item => !item.EffectiveCaptureDate.HasValue);
-        errorsFilterQuickItem.Click += (_, _) => ApplyFilter("Erreurs", item => item.Error is not null);
-        Command("restoreBackupCommand").Click += async (_, _) => await RestoreSelectedAsync();
-        selectAllMenuItem.Click += (_, _) => dgv.SelectAll();
-        removeFromSessionMenuItem.Click += (_, _) => RemoveSelectedFromSession();
-        exitMenuItem.Click += (_, _) => Close();
-        guideMenuItem.Click += (_, _) => OpenExternal("https://github.com/fatvicbart/exif-tweaker/blob/main/GUIDE_UTILISATEUR.md");
-        logsMenuItem.Click += (_, _) => ShowLogs();
-        verifyExifToolMenuItem.Click += async (_, _) => await VerifyExifToolAsync();
-        checkUpdatesMenuItem.Click += async (_, _) => await CheckForUpdatesAsync();
-        aboutMenuItem.Click += (_, _) => ShowAbout();
-        dgv.SelectionChanged += async (_, _) => { if (!_restoringGridSelection) await ActiveSelectionChangedAsync(); };
+        _gpsSearchTimer.Tick += GpsSearchTimerTick;
+    }
+
+    private async void GpsSearchTimerTick(object? sender, EventArgs e)
+    {
+        _gpsSearchTimer.Stop();
+        await SearchGpsSuggestionsAsync(showNoResultMessage: false);
+    }
+
+    private void tGPS_TextChanged(object sender, EventArgs e) => ScheduleGpsSearch();
+
+    private async void applyAllButton_Click(object sender, EventArgs e) => await ApplyPendingChangesAsync(_session.Media.ToList());
+
+    private async void applySelectedMenuItem_Click(object sender, EventArgs e) => await ApplyPendingChangesAsync(SelectedItems);
+
+    private async void uploadImmichSelected_Click(object sender, EventArgs e) => await SendToImmichAsync(SelectedItems);
+
+    private async void uploadImmichAll_Click(object sender, EventArgs e) => await SendToImmichAsync(_session.Media.ToList());
+
+    private async void openFolderCommand_Click(object sender, EventArgs e) => await OpenFolderAsync();
+
+    private void dateEditorCommand_Click(object sender, EventArgs e) => OpenDateEditor();
+
+    private async void settingsCommand_Click(object sender, EventArgs e) => await OpenSettingsAsync();
+
+    private void cancelCommand_Click(object sender, EventArgs e) => _operationCts?.Cancel();
+
+    private void undoCommand_Click(object sender, EventArgs e) => UndoPendingChanges();
+
+    private void redoCommand_Click(object sender, EventArgs e) => RedoPendingChanges();
+
+    private void resetSelectedCommand_Click(object sender, EventArgs e) => ResetPatches(SelectedItems);
+
+    private void resetAllCommand_Click(object sender, EventArgs e) => ResetPatches(_session.Media);
+
+    private void minusHourCommand_Click(object sender, EventArgs e) => ShiftSelected(TimeSpan.FromHours(-1));
+
+    private void plusHourCommand_Click(object sender, EventArgs e) => ShiftSelected(TimeSpan.FromHours(1));
+
+    private void minusMinuteCommand_Click(object sender, EventArgs e) => ShiftSelected(TimeSpan.FromMinutes(-1));
+
+    private void plusMinuteCommand_Click(object sender, EventArgs e) => ShiftSelected(TimeSpan.FromMinutes(1));
+
+    private void removeGpsCommand_Click(object sender, EventArgs e) => RemoveGpsSelected();
+
+    private void copyGpsCommand_Click(object sender, EventArgs e) => CopyGpsSelected();
+
+    private void pasteGpsCommand_Click(object sender, EventArgs e) => PasteGpsSelected();
+
+    private async void reverseGpsCommand_Click(object sender, EventArgs e) => await ReverseGpsSelectedAsync();
+
+    private void mapCommand_Click(object sender, EventArgs e) => ToggleMap();
+
+    private void previewMenuItem_Click(object sender, EventArgs e) => ShowPreview();
+
+    private async void informationMenuItem_Click(object sender, EventArgs e) => await ShowInformationAsync();
+
+    private void quickActions_Click(object sender, EventArgs e) => ToggleQuickActions();
+
+    private void allFilterCommand_Click(object sender, EventArgs e) => ApplyFilter("Tous", _ => true);
+
+    private void modifiedFilterCommand_Click(object sender, EventArgs e) => ApplyFilter("Modifiés", item => item.HasPendingChanges);
+
+    private void noGpsFilterCommand_Click(object sender, EventArgs e) => ApplyFilter("Sans GPS", item => !item.EffectiveLatitude.HasValue || !item.EffectiveLongitude.HasValue);
+
+    private void noDateFilterCommand_Click(object sender, EventArgs e) => ApplyFilter("Sans date", item => !item.EffectiveCaptureDate.HasValue);
+
+    private void errorsFilterCommand_Click(object sender, EventArgs e) => ApplyFilter("Erreurs", item => item.Error is not null);
+
+    private async void restoreBackupCommand_Click(object sender, EventArgs e) => await RestoreSelectedAsync();
+
+    private void selectAllMenuItem_Click(object sender, EventArgs e) => dgv.SelectAll();
+
+    private void removeFromSessionMenuItem_Click(object sender, EventArgs e) => RemoveSelectedFromSession();
+
+    private void exitMenuItem_Click(object sender, EventArgs e) => Close();
+
+    private void guideMenuItem_Click(object sender, EventArgs e) =>
+        OpenExternal("https://github.com/fatvicbart/exif-tweaker/blob/main/GUIDE_UTILISATEUR.md");
+
+    private void logsMenuItem_Click(object sender, EventArgs e) => ShowLogs();
+
+    private async void verifyExifToolMenuItem_Click(object sender, EventArgs e) => await VerifyExifToolAsync();
+
+    private async void checkUpdatesMenuItem_Click(object sender, EventArgs e) => await CheckForUpdatesAsync();
+
+    private void aboutMenuItem_Click(object sender, EventArgs e) => ShowAbout();
+
+    private async void dgv_SelectionChanged(object sender, EventArgs e)
+    {
+        if (!_restoringGridSelection) await ActiveSelectionChangedAsync();
     }
 
     private async Task ActiveSelectionChangedAsync()
@@ -699,14 +740,15 @@ public partial class Form1 : Form
         }
         finally { _view.RaiseListChangedEvents = true; }
         _bindingSource.ResetBindings(false);
-        dgv.ClearSelection();
-        foreach (DataGridViewRow row in dgv.Rows)
-            if (row.DataBoundItem is PhotoItem item && selectedBefore.Contains(item)) row.Selected = true;
         var currentRow = dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(row => ReferenceEquals(row.DataBoundItem, currentBefore))
-            ?? dgv.SelectedRows.Cast<DataGridViewRow>().FirstOrDefault()
+            ?? dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault(row => row.DataBoundItem is PhotoItem item && selectedBefore.Contains(item))
             ?? dgv.Rows.Cast<DataGridViewRow>().FirstOrDefault();
         if (currentRow is not null)
             dgv.CurrentCell = currentRow.Cells[Math.Clamp(currentColumn, 0, dgv.Columns.Count - 1)];
+        dgv.ClearSelection();
+        foreach (DataGridViewRow row in dgv.Rows)
+            if (row.DataBoundItem is PhotoItem item && selectedBefore.Contains(item)) row.Selected = true;
+        if (dgv.SelectedRows.Count == 0 && currentRow is not null) currentRow.Selected = true;
         _restoringGridSelection = false;
         if (filterQuickCommand is not null) filterQuickCommand.Text = $"Filtre : {_activeFilterName} ({_view.Count}/{_session.Media.Count})";
         UpdateFilterChecks();
@@ -770,6 +812,7 @@ public partial class Form1 : Form
             server = await client.GetServerInfoAsync(ct);
             operationStatus.Text = "Chargement des albums Immich…";
             albums = await client.GetAlbumsAsync(ct);
+            PopulateAlbumCombo(albums);
         }
         catch (OperationCanceledException) { return; }
         catch (Exception ex)
@@ -782,7 +825,7 @@ public partial class Form1 : Form
         }
         finally { SetBusy(false); }
 
-        using var prepare = new ImmichUploadForm(photos, albums, _settings, server);
+        using var prepare = new ImmichUploadForm(photos, albums, _settings, server, SelectedAlbumId, SelectedNewAlbumName);
         ThemeService.Apply(prepare);
         if (prepare.ShowDialog(this) != DialogResult.OK || prepare.Request is null) return;
 
@@ -793,6 +836,62 @@ public partial class Form1 : Form
         using var progressDialog = new ImmichUploadProgressForm(new ImmichUploadService(client), request);
         ThemeService.Apply(progressDialog);
         progressDialog.ShowDialog(this);
+    }
+
+    private const string NoAlbumEntry = "Aucun album";
+    private const string NewAlbumEntry = "Créer un nouvel album…";
+
+    private string? SelectedAlbumId => immichAlbum.SelectedItem as ImmichAlbum is { } album ? album.Id : null;
+
+    private string? SelectedNewAlbumName =>
+        Equals(immichAlbum.SelectedItem, NewAlbumEntry) && !string.IsNullOrWhiteSpace(immichNewAlbum.Text)
+            ? immichNewAlbum.Text.Trim()
+            : null;
+
+    private void PopulateAlbumCombo(IReadOnlyList<ImmichAlbum> albums)
+    {
+        var previousId = SelectedAlbumId;
+        var wasNewAlbum = Equals(immichAlbum.SelectedItem, NewAlbumEntry);
+        immichAlbum.BeginUpdate();
+        try
+        {
+            immichAlbum.Items.Clear();
+            immichAlbum.Items.Add(NoAlbumEntry);
+            foreach (var album in albums) immichAlbum.Items.Add(album);
+            immichAlbum.Items.Add(NewAlbumEntry);
+            var restored = albums.FirstOrDefault(album => album.Id == previousId)
+                ?? albums.FirstOrDefault(album => album.Id == _settings.ImmichDefaultAlbumId);
+            if (wasNewAlbum) immichAlbum.SelectedItem = NewAlbumEntry;
+            else if (restored is not null) immichAlbum.SelectedItem = restored;
+            else immichAlbum.SelectedIndex = 0;
+        }
+        finally { immichAlbum.EndUpdate(); }
+        _immichAlbumsLoaded = true;
+    }
+
+    private void immichAlbum_SelectedIndexChanged(object? sender, EventArgs e) =>
+        immichNewAlbum.Enabled = Equals(immichAlbum.SelectedItem, NewAlbumEntry);
+
+    private async void immichAlbum_DropDown(object? sender, EventArgs e)
+    {
+        if (_immichAlbumsLoaded || _isBusy) return;
+        await LoadImmichAlbumsAsync();
+    }
+
+    private async Task LoadImmichAlbumsAsync()
+    {
+        var key = new WindowsSecretStore().Read("immich-api-key");
+        if (!_settings.ImmichEnabled || string.IsNullOrWhiteSpace(_settings.ImmichServerUrl) || string.IsNullOrWhiteSpace(key)) return;
+        try
+        {
+            using var client = new ImmichClient(_settings.ImmichServerUrl, key);
+            PopulateAlbumCombo(await client.GetAlbumsAsync(CancellationToken.None));
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Unable to load Immich albums.", ex);
+            operationStatus.Text = "Albums Immich indisponibles.";
+        }
     }
 
     private void ToggleMap()
@@ -1169,9 +1268,16 @@ public partial class Form1 : Form
 
         uploadImmichSelectedMenuItem.Enabled = uploadImmichSelectedQuickItem.Enabled = canEditSelection;
         uploadImmichAllMenuItem.Enabled = uploadImmichAllQuickItem.Enabled = !_isBusy && hasMedia;
+        uploadImmichSelectedMenuItem.Text = $"Envoyer la sélection vers Immich… ({selected.Count})";
+        uploadImmichSelectedQuickItem.Text = $"Envoyer la sélection… ({selected.Count})";
+        uploadImmichAllMenuItem.Text = $"Envoyer toutes les images vers Immich… ({_session.Media.Count})";
+        uploadImmichAllQuickItem.Text = $"Envoyer toutes les images… ({_session.Media.Count})";
         immichQuickCommand.Enabled = !_isBusy && hasMedia;
 
         bOpen.Enabled = canEditSelection;
+        bOpen.Text = $"PRÉPARER LA SÉLECTION ({selected.Count})";
+        bOpenAll.Enabled = !_isBusy && hasMedia;
+        bOpenAll.Text = $"PRÉPARER TOUT ({_session.Media.Count})";
         dateEditorCommand.Enabled = dateQuickCommand.Enabled = canEditSelection;
         resetSelectedCommand.Enabled = !_isBusy && selectedPending > 0;
         resetAllCommand.Enabled = !_isBusy && pending > 0;
@@ -1185,6 +1291,15 @@ public partial class Form1 : Form
 
         var canSearchGps = !_isBusy && !_gpsSearchInProgress && tGPS.Text.Trim().Length >= 2;
         bGPS.Enabled = canEditSelection && IsGpsInputValid;
+        bGPS.Text = $"PRÉPARER LA SÉLECTION ({selected.Count})";
+        bGPSAll.Enabled = !_isBusy && hasMedia && IsGpsInputValid;
+        bGPSAll.Text = $"PRÉPARER TOUT ({_session.Media.Count})";
+        immichAlbum.Enabled = !_isBusy && _settings.ImmichEnabled;
+        immichNewAlbum.Enabled = immichAlbum.Enabled && Equals(immichAlbum.SelectedItem, NewAlbumEntry);
+        immichSendSelected.Enabled = canEditSelection;
+        immichSendSelected.Text = $"ENVOYER LA SÉLECTION ({selected.Count})";
+        immichSendAll.Enabled = !_isBusy && hasMedia;
+        immichSendAll.Text = $"ENVOYER TOUT ({_session.Media.Count})";
         findGpsMenuItem.Enabled = findGpsQuickItem.Enabled = canSearchGps;
         var canIdentifyLocation = _currentLocation is not null ||
             SelectedItems.Any(item => item.EffectiveLatitude.HasValue && item.EffectiveLongitude.HasValue);

@@ -19,6 +19,7 @@ partial class SettingsForm
     private CheckBox prereleaseUpdates;
     private Label installedVersion;
     private Button checkUpdatesButton;
+    private CheckBox confirmBulkPrepare;
     private Button immichSettingsButton;
 
     protected override void Dispose(bool disposing)
@@ -47,12 +48,13 @@ partial class SettingsForm
         prereleaseUpdates = new CheckBox { Text = "Inclure les préversions GitHub", AutoSize = true };
         installedVersion = new Label { AutoSize = true, TextAlign = ContentAlignment.MiddleLeft };
         checkUpdatesButton = new Button { Text = "Rechercher maintenant…", AutoSize = true };
+        confirmBulkPrepare = new CheckBox { Text = "Demander une confirmation avant les actions « tout »", AutoSize = true };
         immichSettingsButton = new Button { Text = "Configurer Immich…", AutoSize = true };
-        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), ColumnCount = 3, RowCount = 15 };
+        var root = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(10), ColumnCount = 3, RowCount = 16 };
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 165));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (var i = 0; i < 14; i++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
+        for (var i = 0; i < 15; i++) root.RowStyles.Add(new RowStyle(SizeType.Absolute, 36));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         browseButton.Click += browseButton_Click;
         saveButton.Click += saveButton_Click;
@@ -73,10 +75,11 @@ partial class SettingsForm
         AddRow(root, 10, "Update channel", prereleaseUpdates);
         AddRow(root, 11, "Installed", installedVersion);
         root.Controls.Add(checkUpdatesButton, 1, 12);
-        AddRow(root, 13, "Immich", immichSettingsButton);
+        AddRow(root, 13, "Actions groupées", confirmBulkPrepare);
+        AddRow(root, 14, "Immich", immichSettingsButton);
         var buttons = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.RightToLeft };
         buttons.Controls.AddRange(new Control[] { cancelButton, saveButton });
-        root.Controls.Add(buttons, 0, 14);
+        root.Controls.Add(buttons, 0, 15);
         root.SetColumnSpan(buttons, 3);
 
         AcceptButton = saveButton;

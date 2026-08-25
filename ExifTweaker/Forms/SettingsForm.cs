@@ -27,6 +27,7 @@ public sealed partial class SettingsForm : Form
         ThemeService.Apply(this);
         autoUpdates.Checked = settings.CheckForUpdatesAutomatically;
         prereleaseUpdates.Checked = settings.IncludePrereleaseUpdates;
+        confirmBulkPrepare.Checked = settings.ConfirmBulkPrepare;
         installedVersion.Text = $"Version {new UpdateService(settings).DisplayVersion}";
     }
 
@@ -62,6 +63,7 @@ public sealed partial class SettingsForm : Form
         _settings.Theme = SelectedTheme;
         _settings.CheckForUpdatesAutomatically = autoUpdates.Checked;
         _settings.IncludePrereleaseUpdates = prereleaseUpdates.Checked;
+        _settings.ConfirmBulkPrepare = confirmBulkPrepare.Checked;
         _settings.Save();
         DialogResult = DialogResult.OK;
     }
