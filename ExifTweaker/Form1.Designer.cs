@@ -28,6 +28,7 @@ namespace ExifTweaker
         /// </summary>
         private void InitializeComponent()
         {
+            components = new System.ComponentModel.Container();
             DataGridViewCellStyle dataGridViewCellStyle1 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle2 = new DataGridViewCellStyle();
             DataGridViewCellStyle dataGridViewCellStyle3 = new DataGridViewCellStyle();
@@ -35,32 +36,81 @@ namespace ExifTweaker
             bOpen = new Button();
             main = new TableLayoutPanel();
             tableLayoutPanel2 = new TableLayoutPanel();
-            bGPS = new Button();
-            tableLayoutPanel3 = new TableLayoutPanel();
-            dateTimePicker1 = new ExifTweaker.Controls.ThemedDateTimeInput();
-            tGPS = new TextBox();
-            pgb = new ProgressBar();
-            applyAllButton = new Button();
             dateGroup = new GroupBox();
-            gpsGroup = new GroupBox();
-            immichGroup = new GroupBox();
-            gpsLayout = new TableLayoutPanel();
-            immichLayout = new TableLayoutPanel();
-            applyPanel = new TableLayoutPanel();
-            dateButtons = new FlowLayoutPanel();
-            gpsButtons = new FlowLayoutPanel();
-            immichButtons = new FlowLayoutPanel();
+            tableLayoutPanel3 = new TableLayoutPanel();
             bOpenAll = new Button();
+            dateTimePicker1 = new ExifTweaker.Controls.ThemedDateTimeInput();
+            gpsGroup = new GroupBox();
+            gpsLayout = new TableLayoutPanel();
+            bGPS = new Button();
+            tGPS = new TextBox();
             bGPSAll = new Button();
-            immichAlbum = new ComboBox();
-            immichNewAlbum = new TextBox();
+            immichGroup = new GroupBox();
+            immichLayout = new TableLayoutPanel();
             immichSendSelected = new Button();
             immichSendAll = new Button();
+            immichAlbum = new ComboBox();
+            immichNewAlbum = new TextBox();
+            applyPanel = new TableLayoutPanel();
+            pgb = new ProgressBar();
+            applyAllButton = new Button();
             splitContainer1 = new SplitContainer();
             dgv = new DataGridView();
             thumbnailColumn = new DataGridViewImageColumn();
+            gridContextMenu = new ContextMenuStrip(components);
+            ctxCopy = new ToolStripMenuItem();
+            ctxCopyGps = new ToolStripMenuItem();
+            ctxCopyDate = new ToolStripMenuItem();
+            ctxCopyBoth = new ToolStripMenuItem();
+            ctxPaste = new ToolStripMenuItem();
+            ctxPasteGps = new ToolStripMenuItem();
+            ctxPasteDate = new ToolStripMenuItem();
+            ctxPasteBoth = new ToolStripMenuItem();
+            ctxSeparator1 = new ToolStripSeparator();
+            ctxPrepare = new ToolStripMenuItem();
+            ctxPrepareGps = new ToolStripMenuItem();
+            ctxPrepareDate = new ToolStripMenuItem();
+            ctxPrepareBoth = new ToolStripMenuItem();
+            ctxSeparator2 = new ToolStripSeparator();
+            ctxDateEditor = new ToolStripMenuItem();
+            ctxShift = new ToolStripMenuItem();
+            ctxMinusHour = new ToolStripMenuItem();
+            ctxPlusHour = new ToolStripMenuItem();
+            ctxMinusMinute = new ToolStripMenuItem();
+            ctxPlusMinute = new ToolStripMenuItem();
+            ctxRemoveGps = new ToolStripMenuItem();
+            ctxResetSelection = new ToolStripMenuItem();
+            ctxSeparator3 = new ToolStripSeparator();
+            ctxApply = new ToolStripMenuItem();
+            ctxImmich = new ToolStripMenuItem();
+            ctxImmichLoading = new ToolStripMenuItem();
+            ctxRestoreBackup = new ToolStripMenuItem();
+            ctxSeparator4 = new ToolStripSeparator();
+            ctxView = new ToolStripMenuItem();
+            ctxShowOnMap = new ToolStripMenuItem();
+            ctxShowInformation = new ToolStripMenuItem();
+            ctxOpenLocation = new ToolStripMenuItem();
+            ctxCopyPath = new ToolStripMenuItem();
+            ctxSeparator5 = new ToolStripSeparator();
+            ctxRemove = new ToolStripMenuItem();
             picBox = new PictureBox();
             mapControl = new ExifTweaker.Controls.MapControl();
+            headerContextMenu = new ContextMenuStrip(components);
+            hdrFilter = new ToolStripMenuItem();
+            hdrGranularity = new ToolStripMenuItem();
+            hdrGranularityYear = new ToolStripMenuItem();
+            hdrGranularityMonth = new ToolStripMenuItem();
+            hdrGranularityDay = new ToolStripMenuItem();
+            hdrClearColumnFilter = new ToolStripMenuItem();
+            hdrClearAllFilters = new ToolStripMenuItem();
+            hdrSeparator1 = new ToolStripSeparator();
+            hdrSortAscending = new ToolStripMenuItem();
+            hdrSortDescending = new ToolStripMenuItem();
+            hdrSeparator2 = new ToolStripSeparator();
+            hdrColumns = new ToolStripMenuItem();
+            hdrAutoSize = new ToolStripMenuItem();
+            columnsMenuItem = new ToolStripMenuItem();
+            clearColumnFiltersMenuItem = new ToolStripMenuItem();
             commands = new ToolStrip();
             openQuickCommand = new ToolStripDropDownButton();
             openFilesQuickItem = new ToolStripMenuItem();
@@ -158,22 +208,21 @@ namespace ExifTweaker
             quickActionsToggleItem = new ToolStripMenuItem();
             main.SuspendLayout();
             tableLayoutPanel2.SuspendLayout();
-            tableLayoutPanel3.SuspendLayout();
             dateGroup.SuspendLayout();
+            tableLayoutPanel3.SuspendLayout();
             gpsGroup.SuspendLayout();
-            immichGroup.SuspendLayout();
             gpsLayout.SuspendLayout();
+            immichGroup.SuspendLayout();
             immichLayout.SuspendLayout();
             applyPanel.SuspendLayout();
-            dateButtons.SuspendLayout();
-            gpsButtons.SuspendLayout();
-            immichButtons.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)splitContainer1).BeginInit();
             splitContainer1.Panel1.SuspendLayout();
             splitContainer1.Panel2.SuspendLayout();
             splitContainer1.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)dgv).BeginInit();
+            gridContextMenu.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)picBox).BeginInit();
+            headerContextMenu.SuspendLayout();
             commands.SuspendLayout();
             navigationMenu.SuspendLayout();
             SuspendLayout();
@@ -181,26 +230,15 @@ namespace ExifTweaker
             // bOpen
             // 
             bOpen.AutoSize = true;
+            bOpen.Dock = DockStyle.Fill;
             bOpen.Enabled = false;
-            bOpen.Margin = new Padding(6, 3, 0, 3);
+            bOpen.Location = new Point(903, 3);
             bOpen.Name = "bOpen";
-            bOpen.Size = new Size(250, 28);
+            bOpen.Size = new Size(144, 40);
             bOpen.TabIndex = 0;
             bOpen.Text = "PRÉPARER LA SÉLECTION (0)";
             bOpen.UseVisualStyleBackColor = true;
             bOpen.Click += PrepareDateForSelection;
-            // 
-            // bOpenAll
-            // 
-            bOpenAll.AutoSize = true;
-            bOpenAll.Enabled = false;
-            bOpenAll.Margin = new Padding(6, 3, 0, 3);
-            bOpenAll.Name = "bOpenAll";
-            bOpenAll.Size = new Size(210, 28);
-            bOpenAll.TabIndex = 1;
-            bOpenAll.Text = "PRÉPARER TOUT (0)";
-            bOpenAll.UseVisualStyleBackColor = true;
-            bOpenAll.Click += PrepareDateForAll;
             // 
             // main
             // 
@@ -215,7 +253,7 @@ namespace ExifTweaker
             main.RowCount = 2;
             main.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
             main.RowStyles.Add(new RowStyle(SizeType.Absolute, 226F));
-            main.Size = new Size(1200, 696);
+            main.Size = new Size(1200, 698);
             main.TabIndex = 3;
             // 
             // tableLayoutPanel2
@@ -227,14 +265,14 @@ namespace ExifTweaker
             tableLayoutPanel2.Controls.Add(immichGroup, 0, 2);
             tableLayoutPanel2.Controls.Add(applyPanel, 0, 3);
             tableLayoutPanel2.Dock = DockStyle.Fill;
-            tableLayoutPanel2.Location = new Point(0, 470);
+            tableLayoutPanel2.Location = new Point(0, 472);
             tableLayoutPanel2.Margin = new Padding(0);
             tableLayoutPanel2.Name = "tableLayoutPanel2";
             tableLayoutPanel2.RowCount = 4;
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Absolute, 62F));
-            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 27.7777786F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 27.7777786F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 27.7777786F));
+            tableLayoutPanel2.RowStyles.Add(new RowStyle(SizeType.Percent, 16.666666F));
             tableLayoutPanel2.Size = new Size(1200, 226);
             tableLayoutPanel2.TabIndex = 3;
             // 
@@ -242,167 +280,167 @@ namespace ExifTweaker
             // 
             dateGroup.Controls.Add(tableLayoutPanel3);
             dateGroup.Dock = DockStyle.Fill;
-            dateGroup.Margin = new Padding(4, 0, 4, 2);
+            dateGroup.Location = new Point(0, 0);
+            dateGroup.Margin = new Padding(0);
             dateGroup.Name = "dateGroup";
-            dateGroup.Padding = new Padding(6, 2, 6, 4);
+            dateGroup.Padding = new Padding(0);
+            dateGroup.Size = new Size(1200, 62);
             dateGroup.TabIndex = 0;
             dateGroup.TabStop = false;
             dateGroup.Text = "Date et heure";
+            // 
+            // tableLayoutPanel3
+            // 
+            tableLayoutPanel3.ColumnCount = 3;
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            tableLayoutPanel3.Controls.Add(bOpen, 1, 0);
+            tableLayoutPanel3.Controls.Add(bOpenAll, 2, 0);
+            tableLayoutPanel3.Controls.Add(dateTimePicker1, 0, 0);
+            tableLayoutPanel3.Dock = DockStyle.Fill;
+            tableLayoutPanel3.Location = new Point(0, 16);
+            tableLayoutPanel3.Margin = new Padding(0);
+            tableLayoutPanel3.Name = "tableLayoutPanel3";
+            tableLayoutPanel3.RowCount = 1;
+            tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            tableLayoutPanel3.Size = new Size(1200, 46);
+            tableLayoutPanel3.TabIndex = 1;
+            // 
+            // bOpenAll
+            // 
+            bOpenAll.AutoSize = true;
+            bOpenAll.Dock = DockStyle.Fill;
+            bOpenAll.Enabled = false;
+            bOpenAll.Location = new Point(1053, 3);
+            bOpenAll.Name = "bOpenAll";
+            bOpenAll.Size = new Size(144, 40);
+            bOpenAll.TabIndex = 1;
+            bOpenAll.Text = "PRÉPARER TOUT (0)";
+            bOpenAll.UseVisualStyleBackColor = true;
+            bOpenAll.Click += PrepareDateForAll;
+            // 
+            // dateTimePicker1
+            // 
+            dateTimePicker1.Dock = DockStyle.Fill;
+            dateTimePicker1.Location = new Point(3, 3);
+            dateTimePicker1.Mask = "0000-00-00";
+            dateTimePicker1.Name = "dateTimePicker1";
+            dateTimePicker1.PromptChar = ' ';
+            dateTimePicker1.Size = new Size(894, 23);
+            dateTimePicker1.TabIndex = 4;
+            dateTimePicker1.Text = "20260825";
+            dateTimePicker1.TextMaskFormat = MaskFormat.IncludePromptAndLiterals;
             // 
             // gpsGroup
             // 
             gpsGroup.Controls.Add(gpsLayout);
             gpsGroup.Dock = DockStyle.Fill;
-            gpsGroup.Margin = new Padding(4, 0, 4, 2);
+            gpsGroup.Location = new Point(0, 62);
+            gpsGroup.Margin = new Padding(0);
             gpsGroup.Name = "gpsGroup";
-            gpsGroup.Padding = new Padding(6, 2, 6, 4);
+            gpsGroup.Padding = new Padding(0);
+            gpsGroup.Size = new Size(1200, 62);
             gpsGroup.TabIndex = 1;
             gpsGroup.TabStop = false;
             gpsGroup.Text = "Localisation GPS";
             // 
-            // immichGroup
+            // gpsLayout
             // 
-            immichGroup.Controls.Add(immichLayout);
-            immichGroup.Dock = DockStyle.Fill;
-            immichGroup.Margin = new Padding(4, 0, 4, 2);
-            immichGroup.Name = "immichGroup";
-            immichGroup.Padding = new Padding(6, 2, 6, 4);
-            immichGroup.TabIndex = 2;
-            immichGroup.TabStop = false;
-            immichGroup.Text = "Immich";
+            gpsLayout.ColumnCount = 3;
+            gpsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
+            gpsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            gpsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            gpsLayout.Controls.Add(bGPS, 1, 0);
+            gpsLayout.Controls.Add(tGPS, 0, 0);
+            gpsLayout.Controls.Add(bGPSAll, 2, 0);
+            gpsLayout.Dock = DockStyle.Fill;
+            gpsLayout.Location = new Point(0, 16);
+            gpsLayout.Margin = new Padding(0);
+            gpsLayout.Name = "gpsLayout";
+            gpsLayout.RowCount = 1;
+            gpsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            gpsLayout.Size = new Size(1200, 46);
+            gpsLayout.TabIndex = 0;
             // 
             // bGPS
             // 
             bGPS.AutoSize = true;
+            bGPS.Dock = DockStyle.Fill;
             bGPS.Enabled = false;
-            bGPS.Margin = new Padding(6, 3, 0, 3);
+            bGPS.Location = new Point(903, 3);
             bGPS.Name = "bGPS";
-            bGPS.Size = new Size(250, 28);
+            bGPS.Size = new Size(144, 40);
             bGPS.TabIndex = 7;
             bGPS.Text = "PRÉPARER LA SÉLECTION (0)";
             bGPS.UseVisualStyleBackColor = true;
             bGPS.Click += PrepareGpsForSelection;
             // 
+            // tGPS
+            // 
+            tGPS.Dock = DockStyle.Fill;
+            tGPS.Location = new Point(3, 3);
+            tGPS.Name = "tGPS";
+            tGPS.PlaceholderText = "Rechercher un lieu ou saisir des coordonnées…";
+            tGPS.Size = new Size(894, 23);
+            tGPS.TabIndex = 5;
+            tGPS.TextChanged += tGPS_TextChanged;
+            tGPS.KeyDown += GpsSearchKeyDown;
+            // 
             // bGPSAll
             // 
             bGPSAll.AutoSize = true;
+            bGPSAll.Dock = DockStyle.Fill;
             bGPSAll.Enabled = false;
-            bGPSAll.Margin = new Padding(6, 3, 0, 3);
+            bGPSAll.Location = new Point(1053, 3);
             bGPSAll.Name = "bGPSAll";
-            bGPSAll.Size = new Size(210, 28);
+            bGPSAll.Size = new Size(144, 40);
             bGPSAll.TabIndex = 8;
             bGPSAll.Text = "PRÉPARER TOUT (0)";
             bGPSAll.UseVisualStyleBackColor = true;
             bGPSAll.Click += PrepareGpsForAll;
             // 
-            // tableLayoutPanel3
+            // immichGroup
             // 
-            tableLayoutPanel3.ColumnCount = 2;
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            tableLayoutPanel3.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            tableLayoutPanel3.Controls.Add(dateTimePicker1, 0, 0);
-            tableLayoutPanel3.Controls.Add(dateButtons, 1, 0);
-            tableLayoutPanel3.Dock = DockStyle.Fill;
-            tableLayoutPanel3.Location = new Point(6, 18);
-            tableLayoutPanel3.Margin = new Padding(0);
-            tableLayoutPanel3.Name = "tableLayoutPanel3";
-            tableLayoutPanel3.RowCount = 1;
-            tableLayoutPanel3.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            tableLayoutPanel3.TabIndex = 1;
-            // 
-            // dateButtons
-            // 
-            dateButtons.AutoSize = true;
-            dateButtons.Controls.Add(bOpen);
-            dateButtons.Controls.Add(bOpenAll);
-            dateButtons.Dock = DockStyle.Fill;
-            dateButtons.FlowDirection = FlowDirection.LeftToRight;
-            dateButtons.Margin = new Padding(0);
-            dateButtons.Name = "dateButtons";
-            dateButtons.TabIndex = 2;
-            dateButtons.WrapContents = false;
-            // 
-            // gpsLayout
-            // 
-            gpsLayout.ColumnCount = 2;
-            gpsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            gpsLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-            gpsLayout.Controls.Add(tGPS, 0, 0);
-            gpsLayout.Controls.Add(gpsButtons, 1, 0);
-            gpsLayout.Dock = DockStyle.Fill;
-            gpsLayout.Margin = new Padding(0);
-            gpsLayout.Name = "gpsLayout";
-            gpsLayout.RowCount = 1;
-            gpsLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
-            gpsLayout.TabIndex = 0;
-            // 
-            // gpsButtons
-            // 
-            gpsButtons.AutoSize = true;
-            gpsButtons.Controls.Add(bGPS);
-            gpsButtons.Controls.Add(bGPSAll);
-            gpsButtons.Dock = DockStyle.Fill;
-            gpsButtons.FlowDirection = FlowDirection.LeftToRight;
-            gpsButtons.Margin = new Padding(0);
-            gpsButtons.Name = "gpsButtons";
-            gpsButtons.TabIndex = 1;
-            gpsButtons.WrapContents = false;
+            immichGroup.Controls.Add(immichLayout);
+            immichGroup.Dock = DockStyle.Fill;
+            immichGroup.Location = new Point(0, 124);
+            immichGroup.Margin = new Padding(0);
+            immichGroup.Name = "immichGroup";
+            immichGroup.Padding = new Padding(0);
+            immichGroup.Size = new Size(1200, 62);
+            immichGroup.TabIndex = 2;
+            immichGroup.TabStop = false;
+            immichGroup.Text = "Immich upload";
             // 
             // immichLayout
             // 
-            immichLayout.ColumnCount = 3;
-            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 280F));
-            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            immichLayout.ColumnCount = 4;
+            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50F));
+            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            immichLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 150F));
+            immichLayout.Controls.Add(immichSendSelected, 2, 0);
+            immichLayout.Controls.Add(immichSendAll, 3, 0);
             immichLayout.Controls.Add(immichAlbum, 0, 0);
             immichLayout.Controls.Add(immichNewAlbum, 1, 0);
-            immichLayout.Controls.Add(immichButtons, 2, 0);
             immichLayout.Dock = DockStyle.Fill;
+            immichLayout.Location = new Point(0, 16);
             immichLayout.Margin = new Padding(0);
             immichLayout.Name = "immichLayout";
             immichLayout.RowCount = 1;
             immichLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            immichLayout.Size = new Size(1200, 46);
             immichLayout.TabIndex = 0;
-            // 
-            // immichAlbum
-            // 
-            immichAlbum.Dock = DockStyle.Top;
-            immichAlbum.DropDownStyle = ComboBoxStyle.DropDownList;
-            immichAlbum.Enabled = false;
-            immichAlbum.Margin = new Padding(0, 3, 6, 3);
-            immichAlbum.Name = "immichAlbum";
-            immichAlbum.TabIndex = 0;
-            immichAlbum.SelectedIndexChanged += immichAlbum_SelectedIndexChanged;
-            immichAlbum.DropDown += immichAlbum_DropDown;
-            // 
-            // immichNewAlbum
-            // 
-            immichNewAlbum.Dock = DockStyle.Top;
-            immichNewAlbum.Enabled = false;
-            immichNewAlbum.Margin = new Padding(0, 3, 6, 3);
-            immichNewAlbum.Name = "immichNewAlbum";
-            immichNewAlbum.PlaceholderText = "Nom du nouvel album";
-            immichNewAlbum.TabIndex = 1;
-            // 
-            // immichButtons
-            // 
-            immichButtons.AutoSize = true;
-            immichButtons.Controls.Add(immichSendSelected);
-            immichButtons.Controls.Add(immichSendAll);
-            immichButtons.Dock = DockStyle.Fill;
-            immichButtons.FlowDirection = FlowDirection.LeftToRight;
-            immichButtons.Margin = new Padding(0);
-            immichButtons.Name = "immichButtons";
-            immichButtons.TabIndex = 2;
-            immichButtons.WrapContents = false;
             // 
             // immichSendSelected
             // 
             immichSendSelected.AutoSize = true;
+            immichSendSelected.Dock = DockStyle.Fill;
             immichSendSelected.Enabled = false;
-            immichSendSelected.Margin = new Padding(6, 3, 0, 3);
+            immichSendSelected.Location = new Point(903, 3);
             immichSendSelected.Name = "immichSendSelected";
-            immichSendSelected.Size = new Size(250, 28);
+            immichSendSelected.Size = new Size(144, 40);
             immichSendSelected.TabIndex = 0;
             immichSendSelected.Text = "ENVOYER LA SÉLECTION (0)";
             immichSendSelected.UseVisualStyleBackColor = true;
@@ -411,55 +449,60 @@ namespace ExifTweaker
             // immichSendAll
             // 
             immichSendAll.AutoSize = true;
+            immichSendAll.Dock = DockStyle.Fill;
             immichSendAll.Enabled = false;
-            immichSendAll.Margin = new Padding(6, 3, 0, 3);
+            immichSendAll.Location = new Point(1053, 3);
             immichSendAll.Name = "immichSendAll";
-            immichSendAll.Size = new Size(210, 28);
+            immichSendAll.Size = new Size(144, 40);
             immichSendAll.TabIndex = 1;
             immichSendAll.Text = "ENVOYER TOUT (0)";
             immichSendAll.UseVisualStyleBackColor = true;
             immichSendAll.Click += uploadImmichAll_Click;
             // 
-            // dateTimePicker1
+            // immichAlbum
             // 
-            dateTimePicker1.Dock = DockStyle.Top;
-            dateTimePicker1.Margin = new Padding(0, 3, 6, 3);
-            dateTimePicker1.Mask = "0000-00-00 00:00:00";
-            dateTimePicker1.Name = "dateTimePicker1";
-            dateTimePicker1.PromptChar = ' ';
-            dateTimePicker1.TabIndex = 4;
-            dateTimePicker1.Text = "20260825115954";
-            dateTimePicker1.TextMaskFormat = MaskFormat.IncludePromptAndLiterals;
+            immichAlbum.Dock = DockStyle.Fill;
+            immichAlbum.DropDownStyle = ComboBoxStyle.DropDownList;
+            immichAlbum.Enabled = false;
+            immichAlbum.Location = new Point(3, 3);
+            immichAlbum.Name = "immichAlbum";
+            immichAlbum.Size = new Size(444, 23);
+            immichAlbum.TabIndex = 0;
+            immichAlbum.DropDown += immichAlbum_DropDown;
+            immichAlbum.SelectedIndexChanged += immichAlbum_SelectedIndexChanged;
             // 
-            // tGPS
+            // immichNewAlbum
             // 
-            tGPS.Dock = DockStyle.Top;
-            tGPS.Margin = new Padding(0, 3, 6, 3);
-            tGPS.Name = "tGPS";
-            tGPS.PlaceholderText = "Rechercher un lieu ou saisir des coordonnées…";
-            tGPS.TabIndex = 5;
-            tGPS.TextChanged += tGPS_TextChanged;
-            tGPS.KeyDown += GpsSearchKeyDown;
+            immichNewAlbum.Dock = DockStyle.Fill;
+            immichNewAlbum.Enabled = false;
+            immichNewAlbum.Location = new Point(453, 3);
+            immichNewAlbum.Name = "immichNewAlbum";
+            immichNewAlbum.PlaceholderText = "Nom du nouvel album";
+            immichNewAlbum.Size = new Size(444, 23);
+            immichNewAlbum.TabIndex = 1;
             // 
             // applyPanel
             // 
             applyPanel.ColumnCount = 2;
             applyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100F));
-            applyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+            applyPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 300F));
             applyPanel.Controls.Add(pgb, 0, 0);
             applyPanel.Controls.Add(applyAllButton, 1, 0);
             applyPanel.Dock = DockStyle.Fill;
-            applyPanel.Margin = new Padding(4, 0, 4, 0);
+            applyPanel.Location = new Point(0, 186);
+            applyPanel.Margin = new Padding(0);
             applyPanel.Name = "applyPanel";
             applyPanel.RowCount = 1;
             applyPanel.RowStyles.Add(new RowStyle(SizeType.Percent, 100F));
+            applyPanel.Size = new Size(1200, 40);
             applyPanel.TabIndex = 3;
             // 
             // pgb
             // 
             pgb.Dock = DockStyle.Fill;
-            pgb.Margin = new Padding(0, 3, 6, 3);
+            pgb.Location = new Point(3, 3);
             pgb.Name = "pgb";
+            pgb.Size = new Size(894, 34);
             pgb.TabIndex = 5;
             // 
             // applyAllButton
@@ -467,9 +510,9 @@ namespace ExifTweaker
             applyAllButton.AutoSize = true;
             applyAllButton.Dock = DockStyle.Fill;
             applyAllButton.Enabled = false;
-            applyAllButton.Margin = new Padding(6, 2, 0, 2);
+            applyAllButton.Location = new Point(903, 3);
             applyAllButton.Name = "applyAllButton";
-            applyAllButton.Size = new Size(466, 28);
+            applyAllButton.Size = new Size(294, 34);
             applyAllButton.TabIndex = 8;
             applyAllButton.Text = "VÉRIFIER ET APPLIQUER TOUT (0)";
             applyAllButton.UseVisualStyleBackColor = true;
@@ -490,7 +533,7 @@ namespace ExifTweaker
             // 
             splitContainer1.Panel2.Controls.Add(picBox);
             splitContainer1.Panel2.Controls.Add(mapControl);
-            splitContainer1.Size = new Size(1192, 598);
+            splitContainer1.Size = new Size(1192, 466);
             splitContainer1.SplitterDistance = 627;
             splitContainer1.SplitterWidth = 5;
             splitContainer1.TabIndex = 4;
@@ -515,6 +558,7 @@ namespace ExifTweaker
             dgv.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
             dgv.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             dgv.Columns.AddRange(new DataGridViewColumn[] { thumbnailColumn });
+            dgv.ContextMenuStrip = gridContextMenu;
             dataGridViewCellStyle2.Alignment = DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle2.BackColor = SystemColors.Window;
             dataGridViewCellStyle2.Font = new Font("Microsoft Sans Serif", 8.25F, FontStyle.Regular, GraphicsUnit.Point, 0);
@@ -537,10 +581,12 @@ namespace ExifTweaker
             dgv.RowHeadersDefaultCellStyle = dataGridViewCellStyle3;
             dgv.RowTemplate.Height = 72;
             dgv.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
-            dgv.Size = new Size(627, 598);
+            dgv.Size = new Size(627, 466);
             dgv.TabIndex = 4;
             dgv.CellFormatting += dgv_CellFormatting;
             dgv.CellMouseClick += dgv_CellMouseClick;
+            dgv.CellMouseDown += dgv_CellMouseDown;
+            dgv.DataBindingComplete += dgv_DataBindingComplete;
             dgv.RowPostPaint += dgv_RowPostPaint;
             dgv.SelectionChanged += dgv_SelectionChanged;
             dgv.KeyDown += dgv_KeyDown;
@@ -552,6 +598,253 @@ namespace ExifTweaker
             thumbnailColumn.Name = "thumbnailColumn";
             thumbnailColumn.Width = 51;
             // 
+            // gridContextMenu
+            // 
+            gridContextMenu.Items.AddRange(new ToolStripItem[] { ctxCopy, ctxPaste, ctxSeparator1, ctxPrepare, ctxShift, ctxRemoveGps, ctxResetSelection, ctxSeparator3, ctxApply, ctxImmich, ctxRestoreBackup, ctxSeparator4, ctxView, ctxOpenLocation, ctxCopyPath, ctxSeparator5, ctxRemove });
+            gridContextMenu.Name = "gridContextMenu";
+            gridContextMenu.Size = new Size(252, 314);
+            gridContextMenu.Opening += gridContextMenu_Opening;
+            // 
+            // ctxCopy
+            // 
+            ctxCopy.DropDownItems.AddRange(new ToolStripItem[] { ctxCopyGps, ctxCopyDate, ctxCopyBoth });
+            ctxCopy.Name = "ctxCopy";
+            ctxCopy.Size = new Size(251, 22);
+            ctxCopy.Text = "Copier";
+            // 
+            // ctxCopyGps
+            // 
+            ctxCopyGps.Name = "ctxCopyGps";
+            ctxCopyGps.Size = new Size(175, 22);
+            ctxCopyGps.Text = "GPS";
+            ctxCopyGps.Click += ctxCopyGps_Click;
+            // 
+            // ctxCopyDate
+            // 
+            ctxCopyDate.Name = "ctxCopyDate";
+            ctxCopyDate.Size = new Size(175, 22);
+            ctxCopyDate.Text = "Date";
+            ctxCopyDate.Click += ctxCopyDate_Click;
+            // 
+            // ctxCopyBoth
+            // 
+            ctxCopyBoth.Name = "ctxCopyBoth";
+            ctxCopyBoth.ShortcutKeyDisplayString = "Ctrl+C";
+            ctxCopyBoth.Size = new Size(175, 22);
+            ctxCopyBoth.Text = "GPS + Date";
+            ctxCopyBoth.Click += ctxCopyBoth_Click;
+            // 
+            // ctxPaste
+            // 
+            ctxPaste.DropDownItems.AddRange(new ToolStripItem[] { ctxPasteGps, ctxPasteDate, ctxPasteBoth });
+            ctxPaste.Name = "ctxPaste";
+            ctxPaste.Size = new Size(251, 22);
+            ctxPaste.Text = "Coller";
+            // 
+            // ctxPasteGps
+            // 
+            ctxPasteGps.Name = "ctxPasteGps";
+            ctxPasteGps.Size = new Size(174, 22);
+            ctxPasteGps.Text = "GPS";
+            ctxPasteGps.Click += ctxPasteGps_Click;
+            // 
+            // ctxPasteDate
+            // 
+            ctxPasteDate.Name = "ctxPasteDate";
+            ctxPasteDate.Size = new Size(174, 22);
+            ctxPasteDate.Text = "Date";
+            ctxPasteDate.Click += ctxPasteDate_Click;
+            // 
+            // ctxPasteBoth
+            // 
+            ctxPasteBoth.Name = "ctxPasteBoth";
+            ctxPasteBoth.ShortcutKeyDisplayString = "Ctrl+V";
+            ctxPasteBoth.Size = new Size(174, 22);
+            ctxPasteBoth.Text = "GPS + Date";
+            ctxPasteBoth.Click += ctxPasteBoth_Click;
+            // 
+            // ctxSeparator1
+            // 
+            ctxSeparator1.Name = "ctxSeparator1";
+            ctxSeparator1.Size = new Size(248, 6);
+            // 
+            // ctxPrepare
+            // 
+            ctxPrepare.DropDownItems.AddRange(new ToolStripItem[] { ctxPrepareGps, ctxPrepareDate, ctxPrepareBoth, ctxSeparator2, ctxDateEditor });
+            ctxPrepare.Name = "ctxPrepare";
+            ctxPrepare.Size = new Size(251, 22);
+            ctxPrepare.Text = "Préparer";
+            // 
+            // ctxPrepareGps
+            // 
+            ctxPrepareGps.Name = "ctxPrepareGps";
+            ctxPrepareGps.Size = new Size(202, 22);
+            ctxPrepareGps.Text = "GPS";
+            ctxPrepareGps.Click += ctxPrepareGps_Click;
+            // 
+            // ctxPrepareDate
+            // 
+            ctxPrepareDate.Name = "ctxPrepareDate";
+            ctxPrepareDate.Size = new Size(202, 22);
+            ctxPrepareDate.Text = "Date";
+            ctxPrepareDate.Click += ctxPrepareDate_Click;
+            // 
+            // ctxPrepareBoth
+            // 
+            ctxPrepareBoth.Name = "ctxPrepareBoth";
+            ctxPrepareBoth.Size = new Size(202, 22);
+            ctxPrepareBoth.Text = "GPS + Date";
+            ctxPrepareBoth.Click += ctxPrepareBoth_Click;
+            // 
+            // ctxSeparator2
+            // 
+            ctxSeparator2.Name = "ctxSeparator2";
+            ctxSeparator2.Size = new Size(199, 6);
+            // 
+            // ctxDateEditor
+            // 
+            ctxDateEditor.Name = "ctxDateEditor";
+            ctxDateEditor.Size = new Size(202, 22);
+            ctxDateEditor.Text = "Éditeur de date avancé…";
+            ctxDateEditor.Click += dateEditorCommand_Click;
+            // 
+            // ctxShift
+            // 
+            ctxShift.DropDownItems.AddRange(new ToolStripItem[] { ctxMinusHour, ctxPlusHour, ctxMinusMinute, ctxPlusMinute });
+            ctxShift.Name = "ctxShift";
+            ctxShift.Size = new Size(251, 22);
+            ctxShift.Text = "Décaler l’heure";
+            // 
+            // ctxMinusHour
+            // 
+            ctxMinusHour.Name = "ctxMinusHour";
+            ctxMinusHour.Size = new Size(129, 22);
+            ctxMinusHour.Text = "-1 heure";
+            ctxMinusHour.Click += minusHourCommand_Click;
+            // 
+            // ctxPlusHour
+            // 
+            ctxPlusHour.Name = "ctxPlusHour";
+            ctxPlusHour.Size = new Size(129, 22);
+            ctxPlusHour.Text = "+1 heure";
+            ctxPlusHour.Click += plusHourCommand_Click;
+            // 
+            // ctxMinusMinute
+            // 
+            ctxMinusMinute.Name = "ctxMinusMinute";
+            ctxMinusMinute.Size = new Size(129, 22);
+            ctxMinusMinute.Text = "-1 minute";
+            ctxMinusMinute.Click += minusMinuteCommand_Click;
+            // 
+            // ctxPlusMinute
+            // 
+            ctxPlusMinute.Name = "ctxPlusMinute";
+            ctxPlusMinute.Size = new Size(129, 22);
+            ctxPlusMinute.Text = "+1 minute";
+            ctxPlusMinute.Click += plusMinuteCommand_Click;
+            // 
+            // ctxRemoveGps
+            // 
+            ctxRemoveGps.Name = "ctxRemoveGps";
+            ctxRemoveGps.Size = new Size(251, 22);
+            ctxRemoveGps.Text = "Supprimer le GPS";
+            ctxRemoveGps.Click += removeGpsCommand_Click;
+            // 
+            // ctxResetSelection
+            // 
+            ctxResetSelection.Name = "ctxResetSelection";
+            ctxResetSelection.Size = new Size(251, 22);
+            ctxResetSelection.Text = "Restaurer la sélection";
+            ctxResetSelection.Click += resetSelectedCommand_Click;
+            // 
+            // ctxSeparator3
+            // 
+            ctxSeparator3.Name = "ctxSeparator3";
+            ctxSeparator3.Size = new Size(248, 6);
+            // 
+            // ctxApply
+            // 
+            ctxApply.Name = "ctxApply";
+            ctxApply.Size = new Size(251, 22);
+            ctxApply.Text = "Vérifier et appliquer la sélection";
+            ctxApply.Click += applySelectedMenuItem_Click;
+            // 
+            // ctxImmich
+            // 
+            ctxImmich.DropDownItems.AddRange(new ToolStripItem[] { ctxImmichLoading });
+            ctxImmich.Name = "ctxImmich";
+            ctxImmich.Size = new Size(251, 22);
+            ctxImmich.Text = "Envoyer sur Immich";
+            ctxImmich.DropDownOpening += ctxImmich_DropDownOpening;
+            // 
+            // ctxImmichLoading
+            // 
+            ctxImmichLoading.Enabled = false;
+            ctxImmichLoading.Name = "ctxImmichLoading";
+            ctxImmichLoading.Size = new Size(212, 22);
+            ctxImmichLoading.Text = "Chargement des albums…";
+            // 
+            // ctxRestoreBackup
+            // 
+            ctxRestoreBackup.Name = "ctxRestoreBackup";
+            ctxRestoreBackup.Size = new Size(251, 22);
+            ctxRestoreBackup.Text = "Restaurer la sauvegarde ExifTool…";
+            ctxRestoreBackup.Click += restoreBackupCommand_Click;
+            // 
+            // ctxSeparator4
+            // 
+            ctxSeparator4.Name = "ctxSeparator4";
+            ctxSeparator4.Size = new Size(248, 6);
+            // 
+            // ctxView
+            // 
+            ctxView.DropDownItems.AddRange(new ToolStripItem[] { ctxShowOnMap, ctxShowInformation });
+            ctxView.Name = "ctxView";
+            ctxView.Size = new Size(251, 22);
+            ctxView.Text = "Afficher";
+            // 
+            // ctxShowOnMap
+            // 
+            ctxShowOnMap.Name = "ctxShowOnMap";
+            ctxShowOnMap.Size = new Size(167, 22);
+            ctxShowOnMap.Text = "Sur la carte";
+            ctxShowOnMap.Click += ctxShowOnMap_Click;
+            // 
+            // ctxShowInformation
+            // 
+            ctxShowInformation.Name = "ctxShowInformation";
+            ctxShowInformation.Size = new Size(167, 22);
+            ctxShowInformation.Text = "Informations EXIF";
+            ctxShowInformation.Click += informationMenuItem_Click;
+            // 
+            // ctxOpenLocation
+            // 
+            ctxOpenLocation.Name = "ctxOpenLocation";
+            ctxOpenLocation.Size = new Size(251, 22);
+            ctxOpenLocation.Text = "Ouvrir l’emplacement du fichier";
+            ctxOpenLocation.Click += ctxOpenLocation_Click;
+            // 
+            // ctxCopyPath
+            // 
+            ctxCopyPath.Name = "ctxCopyPath";
+            ctxCopyPath.ShortcutKeyDisplayString = "Ctrl+Maj+C";
+            ctxCopyPath.Size = new Size(251, 22);
+            ctxCopyPath.Text = "Copier le chemin";
+            ctxCopyPath.Click += ctxCopyPath_Click;
+            // 
+            // ctxSeparator5
+            // 
+            ctxSeparator5.Name = "ctxSeparator5";
+            ctxSeparator5.Size = new Size(248, 6);
+            // 
+            // ctxRemove
+            // 
+            ctxRemove.Name = "ctxRemove";
+            ctxRemove.ShortcutKeyDisplayString = "Suppr";
+            ctxRemove.Size = new Size(251, 22);
+            ctxRemove.Text = "Retirer de la session";
+            ctxRemove.Click += removeFromSessionMenuItem_Click;
+            // 
             // picBox
             // 
             picBox.BackColor = SystemColors.ControlLight;
@@ -560,7 +853,7 @@ namespace ExifTweaker
             picBox.Location = new Point(0, 0);
             picBox.Margin = new Padding(4, 3, 4, 3);
             picBox.Name = "picBox";
-            picBox.Size = new Size(560, 598);
+            picBox.Size = new Size(560, 466);
             picBox.SizeMode = PictureBoxSizeMode.Zoom;
             picBox.TabIndex = 5;
             picBox.TabStop = false;
@@ -570,9 +863,116 @@ namespace ExifTweaker
             mapControl.Dock = DockStyle.Fill;
             mapControl.Location = new Point(0, 0);
             mapControl.Name = "mapControl";
-            mapControl.Size = new Size(560, 598);
+            mapControl.Size = new Size(560, 466);
             mapControl.TabIndex = 6;
             mapControl.Visible = false;
+            // 
+            // headerContextMenu
+            // 
+            headerContextMenu.Items.AddRange(new ToolStripItem[] { hdrFilter, hdrGranularity, hdrClearColumnFilter, hdrClearAllFilters, hdrSeparator1, hdrSortAscending, hdrSortDescending, hdrSeparator2, hdrColumns, hdrAutoSize });
+            headerContextMenu.Name = "headerContextMenu";
+            headerContextMenu.Size = new Size(248, 192);
+            headerContextMenu.Opening += headerContextMenu_Opening;
+            // 
+            // hdrFilter
+            // 
+            hdrFilter.Name = "hdrFilter";
+            hdrFilter.Size = new Size(247, 22);
+            hdrFilter.Text = "Filtrer";
+            // 
+            // hdrGranularity
+            // 
+            hdrGranularity.DropDownItems.AddRange(new ToolStripItem[] { hdrGranularityYear, hdrGranularityMonth, hdrGranularityDay });
+            hdrGranularity.Name = "hdrGranularity";
+            hdrGranularity.Size = new Size(247, 22);
+            hdrGranularity.Text = "Regrouper par";
+            // 
+            // hdrGranularityYear
+            // 
+            hdrGranularityYear.Name = "hdrGranularityYear";
+            hdrGranularityYear.Size = new Size(108, 22);
+            hdrGranularityYear.Text = "Année";
+            hdrGranularityYear.Click += hdrGranularityYear_Click;
+            // 
+            // hdrGranularityMonth
+            // 
+            hdrGranularityMonth.Name = "hdrGranularityMonth";
+            hdrGranularityMonth.Size = new Size(108, 22);
+            hdrGranularityMonth.Text = "Mois";
+            hdrGranularityMonth.Click += hdrGranularityMonth_Click;
+            // 
+            // hdrGranularityDay
+            // 
+            hdrGranularityDay.Name = "hdrGranularityDay";
+            hdrGranularityDay.Size = new Size(108, 22);
+            hdrGranularityDay.Text = "Jour";
+            hdrGranularityDay.Click += hdrGranularityDay_Click;
+            // 
+            // hdrClearColumnFilter
+            // 
+            hdrClearColumnFilter.Name = "hdrClearColumnFilter";
+            hdrClearColumnFilter.Size = new Size(247, 22);
+            hdrClearColumnFilter.Text = "Effacer le filtre de cette colonne";
+            hdrClearColumnFilter.Click += hdrClearColumnFilter_Click;
+            // 
+            // hdrClearAllFilters
+            // 
+            hdrClearAllFilters.Name = "hdrClearAllFilters";
+            hdrClearAllFilters.Size = new Size(247, 22);
+            hdrClearAllFilters.Text = "Effacer tous les filtres de colonne";
+            hdrClearAllFilters.Click += clearColumnFilters_Click;
+            // 
+            // hdrSeparator1
+            // 
+            hdrSeparator1.Name = "hdrSeparator1";
+            hdrSeparator1.Size = new Size(244, 6);
+            // 
+            // hdrSortAscending
+            // 
+            hdrSortAscending.Name = "hdrSortAscending";
+            hdrSortAscending.Size = new Size(247, 22);
+            hdrSortAscending.Text = "Trier de A à Z";
+            hdrSortAscending.Click += hdrSortAscending_Click;
+            // 
+            // hdrSortDescending
+            // 
+            hdrSortDescending.Name = "hdrSortDescending";
+            hdrSortDescending.Size = new Size(247, 22);
+            hdrSortDescending.Text = "Trier de Z à A";
+            hdrSortDescending.Click += hdrSortDescending_Click;
+            // 
+            // hdrSeparator2
+            // 
+            hdrSeparator2.Name = "hdrSeparator2";
+            hdrSeparator2.Size = new Size(244, 6);
+            // 
+            // hdrColumns
+            // 
+            hdrColumns.Name = "hdrColumns";
+            hdrColumns.Size = new Size(247, 22);
+            hdrColumns.Text = "Colonnes";
+            hdrColumns.DropDownOpening += columnsMenu_DropDownOpening;
+            // 
+            // hdrAutoSize
+            // 
+            hdrAutoSize.Name = "hdrAutoSize";
+            hdrAutoSize.Size = new Size(247, 22);
+            hdrAutoSize.Text = "Ajuster les largeurs";
+            hdrAutoSize.Click += hdrAutoSize_Click;
+            // 
+            // columnsMenuItem
+            // 
+            columnsMenuItem.Name = "columnsMenuItem";
+            columnsMenuItem.Size = new Size(250, 22);
+            columnsMenuItem.Text = "&Colonnes";
+            columnsMenuItem.DropDownOpening += columnsMenu_DropDownOpening;
+            // 
+            // clearColumnFiltersMenuItem
+            // 
+            clearColumnFiltersMenuItem.Name = "clearColumnFiltersMenuItem";
+            clearColumnFiltersMenuItem.Size = new Size(250, 22);
+            clearColumnFiltersMenuItem.Text = "Effacer les filtres de colonne";
+            clearColumnFiltersMenuItem.Click += clearColumnFilters_Click;
             // 
             // commands
             // 
@@ -1080,7 +1480,7 @@ namespace ExifTweaker
             // 
             // viewMenu
             // 
-            viewMenu.DropDownItems.AddRange(new ToolStripItem[] { previewMenuItem, mapCommand, informationMenuItem, menuSeparator8, quickActionsMenuItem, menuSeparator9, filterMenu });
+            viewMenu.DropDownItems.AddRange(new ToolStripItem[] { previewMenuItem, mapCommand, informationMenuItem, menuSeparator8, quickActionsMenuItem, columnsMenuItem, menuSeparator9, filterMenu, clearColumnFiltersMenuItem });
             viewMenu.Name = "viewMenu";
             viewMenu.Size = new Size(70, 20);
             viewMenu.Text = "&Affichage";
@@ -1241,10 +1641,10 @@ namespace ExifTweaker
             AllowDrop = true;
             AutoScaleDimensions = new SizeF(7F, 15F);
             AutoScaleMode = AutoScaleMode.Font;
-            ClientSize = new Size(1200, 720);
+            ClientSize = new Size(1200, 722);
             Controls.Add(main);
-            Controls.Add(commands);
             Controls.Add(navigationMenu);
+            Controls.Add(commands);
             Icon = (Icon)resources.GetObject("$this.Icon");
             MainMenuStrip = navigationMenu;
             Margin = new Padding(4, 3, 4, 3);
@@ -1255,33 +1655,25 @@ namespace ExifTweaker
             DragEnter += Form1_DragEnter;
             main.ResumeLayout(false);
             tableLayoutPanel2.ResumeLayout(false);
-            tableLayoutPanel2.PerformLayout();
+            dateGroup.ResumeLayout(false);
             tableLayoutPanel3.ResumeLayout(false);
             tableLayoutPanel3.PerformLayout();
-            dateButtons.ResumeLayout(false);
-            dateButtons.PerformLayout();
-            gpsButtons.ResumeLayout(false);
-            gpsButtons.PerformLayout();
-            immichButtons.ResumeLayout(false);
-            immichButtons.PerformLayout();
+            gpsGroup.ResumeLayout(false);
             gpsLayout.ResumeLayout(false);
             gpsLayout.PerformLayout();
+            immichGroup.ResumeLayout(false);
             immichLayout.ResumeLayout(false);
             immichLayout.PerformLayout();
             applyPanel.ResumeLayout(false);
             applyPanel.PerformLayout();
-            dateGroup.ResumeLayout(false);
-            dateGroup.PerformLayout();
-            gpsGroup.ResumeLayout(false);
-            gpsGroup.PerformLayout();
-            immichGroup.ResumeLayout(false);
-            immichGroup.PerformLayout();
             splitContainer1.Panel1.ResumeLayout(false);
             splitContainer1.Panel2.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)splitContainer1).EndInit();
             splitContainer1.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)dgv).EndInit();
+            gridContextMenu.ResumeLayout(false);
             ((System.ComponentModel.ISupportInitialize)picBox).EndInit();
+            headerContextMenu.ResumeLayout(false);
             commands.ResumeLayout(false);
             commands.PerformLayout();
             navigationMenu.ResumeLayout(false);
@@ -1305,11 +1697,7 @@ namespace ExifTweaker
         private System.Windows.Forms.TableLayoutPanel gpsLayout;
         private System.Windows.Forms.TableLayoutPanel immichLayout;
         private System.Windows.Forms.TableLayoutPanel applyPanel;
-        private System.Windows.Forms.FlowLayoutPanel dateButtons;
-        private System.Windows.Forms.FlowLayoutPanel gpsButtons;
-        private System.Windows.Forms.FlowLayoutPanel immichButtons;
         private System.Windows.Forms.Button bOpenAll;
-        private System.Windows.Forms.Button bGPSAll;
         private System.Windows.Forms.ComboBox immichAlbum;
         private System.Windows.Forms.TextBox immichNewAlbum;
         private System.Windows.Forms.Button immichSendSelected;
@@ -1317,6 +1705,58 @@ namespace ExifTweaker
         private ExifTweaker.Controls.ThemedDateTimeInput dateTimePicker1;
         private System.Windows.Forms.TextBox tGPS;
         private System.Windows.Forms.DataGridView dgv;
+        private System.Windows.Forms.ContextMenuStrip gridContextMenu;
+        private System.Windows.Forms.ToolStripMenuItem ctxCopy;
+        private System.Windows.Forms.ToolStripMenuItem ctxCopyGps;
+        private System.Windows.Forms.ToolStripMenuItem ctxCopyDate;
+        private System.Windows.Forms.ToolStripMenuItem ctxCopyBoth;
+        private System.Windows.Forms.ToolStripMenuItem ctxPaste;
+        private System.Windows.Forms.ToolStripMenuItem ctxPasteGps;
+        private System.Windows.Forms.ToolStripMenuItem ctxPasteDate;
+        private System.Windows.Forms.ToolStripMenuItem ctxPasteBoth;
+        private System.Windows.Forms.ToolStripSeparator ctxSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem ctxPrepare;
+        private System.Windows.Forms.ToolStripMenuItem ctxPrepareGps;
+        private System.Windows.Forms.ToolStripMenuItem ctxPrepareDate;
+        private System.Windows.Forms.ToolStripMenuItem ctxPrepareBoth;
+        private System.Windows.Forms.ToolStripSeparator ctxSeparator2;
+        private System.Windows.Forms.ToolStripMenuItem ctxDateEditor;
+        private System.Windows.Forms.ToolStripMenuItem ctxShift;
+        private System.Windows.Forms.ToolStripMenuItem ctxMinusHour;
+        private System.Windows.Forms.ToolStripMenuItem ctxPlusHour;
+        private System.Windows.Forms.ToolStripMenuItem ctxMinusMinute;
+        private System.Windows.Forms.ToolStripMenuItem ctxPlusMinute;
+        private System.Windows.Forms.ToolStripMenuItem ctxRemoveGps;
+        private System.Windows.Forms.ToolStripMenuItem ctxResetSelection;
+        private System.Windows.Forms.ToolStripSeparator ctxSeparator3;
+        private System.Windows.Forms.ToolStripMenuItem ctxApply;
+        private System.Windows.Forms.ToolStripMenuItem ctxImmich;
+        private System.Windows.Forms.ToolStripMenuItem ctxImmichLoading;
+        private System.Windows.Forms.ToolStripMenuItem ctxRestoreBackup;
+        private System.Windows.Forms.ToolStripSeparator ctxSeparator4;
+        private System.Windows.Forms.ToolStripMenuItem ctxView;
+        private System.Windows.Forms.ToolStripMenuItem ctxShowOnMap;
+        private System.Windows.Forms.ToolStripMenuItem ctxShowInformation;
+        private System.Windows.Forms.ToolStripMenuItem ctxOpenLocation;
+        private System.Windows.Forms.ToolStripMenuItem ctxCopyPath;
+        private System.Windows.Forms.ToolStripSeparator ctxSeparator5;
+        private System.Windows.Forms.ToolStripMenuItem ctxRemove;
+        private System.Windows.Forms.ContextMenuStrip headerContextMenu;
+        private System.Windows.Forms.ToolStripMenuItem hdrFilter;
+        private System.Windows.Forms.ToolStripMenuItem hdrGranularity;
+        private System.Windows.Forms.ToolStripMenuItem hdrGranularityYear;
+        private System.Windows.Forms.ToolStripMenuItem hdrGranularityMonth;
+        private System.Windows.Forms.ToolStripMenuItem hdrGranularityDay;
+        private System.Windows.Forms.ToolStripMenuItem hdrClearColumnFilter;
+        private System.Windows.Forms.ToolStripMenuItem hdrClearAllFilters;
+        private System.Windows.Forms.ToolStripSeparator hdrSeparator1;
+        private System.Windows.Forms.ToolStripMenuItem hdrSortAscending;
+        private System.Windows.Forms.ToolStripMenuItem hdrSortDescending;
+        private System.Windows.Forms.ToolStripSeparator hdrSeparator2;
+        private System.Windows.Forms.ToolStripMenuItem hdrColumns;
+        private System.Windows.Forms.ToolStripMenuItem hdrAutoSize;
+        private System.Windows.Forms.ToolStripMenuItem columnsMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem clearColumnFiltersMenuItem;
         private System.Windows.Forms.DataGridViewImageColumn thumbnailColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn fileNameColumn;
         private System.Windows.Forms.DataGridViewTextBoxColumn dateColumn;
@@ -1428,5 +1868,6 @@ namespace ExifTweaker
         private System.Windows.Forms.ToolStripSeparator menuSeparator13;
         private System.Windows.Forms.ToolStripSeparator menuSeparator14;
         private System.Windows.Forms.ToolStripSeparator menuSeparator15;
+        private Button bGPSAll;
     }
 }

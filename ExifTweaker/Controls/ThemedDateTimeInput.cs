@@ -5,15 +5,15 @@ namespace ExifTweaker.Controls;
 
 public sealed class ThemedDateTimeInput : MaskedTextBox
 {
-    private const string DisplayFormat = "yyyy-MM-dd HH:mm:ss";
-    private DateTime _value = DateTime.Now;
+    private const string DisplayFormat = "yyyy-MM-dd";
+    private DateTime _value = DateTime.Today;
 
     public ThemedDateTimeInput()
     {
-        Mask = "0000-00-00 00:00:00";
+        Mask = "0000-00-00";
         TextMaskFormat = MaskFormat.IncludePromptAndLiterals;
         PromptChar = (char)32;
-        Value = DateTime.Now;
+        Value = DateTime.Today;
     }
 
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -21,13 +21,13 @@ public sealed class ThemedDateTimeInput : MaskedTextBox
     {
         get
         {
-            if (TryReadValue(out var parsed)) _value = parsed;
+            if (TryReadValue(out var parsed)) _value = parsed.Date;
             return _value;
         }
         set
         {
-            _value = value;
-            Text = value.ToString(DisplayFormat, CultureInfo.InvariantCulture);
+            _value = value.Date;
+            Text = _value.ToString(DisplayFormat, CultureInfo.InvariantCulture);
         }
     }
 
@@ -40,7 +40,7 @@ public sealed class ThemedDateTimeInput : MaskedTextBox
 
     protected override void OnLeave(EventArgs e)
     {
-        if (TryReadValue(out var parsed)) _value = parsed;
+        if (TryReadValue(out var parsed)) _value = parsed.Date;
         Text = _value.ToString(DisplayFormat, CultureInfo.InvariantCulture);
         base.OnLeave(e);
     }
@@ -68,10 +68,7 @@ public sealed class ThemedDateTimeInput : MaskedTextBox
         {
             if (caret <= 4) return value.AddYears(direction);
             if (caret <= 7) return value.AddMonths(direction);
-            if (caret <= 10) return value.AddDays(direction);
-            if (caret <= 13) return value.AddHours(direction);
-            if (caret <= 16) return value.AddMinutes(direction);
-            return value.AddSeconds(direction);
+            return value.AddDays(direction);
         }
         catch (ArgumentOutOfRangeException) { return value; }
     }

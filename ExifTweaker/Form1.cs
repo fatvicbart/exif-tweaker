@@ -22,6 +22,8 @@ public partial class Form1 : Form
     private readonly ConcurrentDictionary<string, Image> _gridThumbnails = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _thumbnailLoads = new(StringComparer.OrdinalIgnoreCase);
     private Func<PhotoItem, bool> _activeFilter = _ => true;
+    private readonly ColumnFilterService _columnFilters = new();
+    private string? _headerColumn;
     private BindingList<PhotoItem> _files => _session.Media;
     private readonly AppSettings _settings = AppSettings.Load();
     private readonly FileDiscoveryService _discovery = new();
@@ -31,6 +33,7 @@ public partial class Form1 : Form
     private bool _isBusy;
     private string _activeFilterName = "Tous";
     private GpsCoordinate? _gpsClipboard;
+    private (DateTime Date, TimeSpan? Offset)? _dateClipboard;
     private readonly System.Windows.Forms.Timer _gpsSearchTimer = new() { Interval = 450 };
     private CancellationTokenSource? _gpsSearchCts;
     private bool _gpsSearchInProgress;
@@ -78,6 +81,8 @@ public partial class Form1 : Form
         InitializeGpsSuggestionsPopup();
         ThemeService.Apply(this);
         ThemeService.Apply(_gpsSuggestionsPopup);
+        ThemeService.Apply(gridContextMenu);
+        ThemeService.Apply(headerContextMenu);
         ThemeService.ThemeChanged += OnThemeChanged;
         _bindingSource.DataSource = _view;
         dgv.DataSource = _bindingSource;
@@ -502,10 +507,446 @@ public partial class Form1 : Form
         e.Handled = true;
     }
 
+    private void dgv_CellMouseDown(object sender, DataGridViewCellMouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.Right) return;
+        if (e.RowIndex == -1 && e.ColumnIndex >= 0)
+        {
+            _headerColumn = dgv.Columns[e.ColumnIndex].DataPropertyName;
+            dgv.ContextMenuStrip = headerContextMenu;
+            return;
+        }
+        dgv.ContextMenuStrip = gridContextMenu;
+        if (e.RowIndex < 0) return;
+        var row = dgv.Rows[e.RowIndex];
+        if (row.Selected) return;
+        dgv.ClearSelection();
+        dgv.CurrentCell = row.Cells[Math.Clamp(e.ColumnIndex, 0, dgv.Columns.Count - 1)];
+        row.Selected = true;
+    }
+
+    private void headerContextMenu_Opening(object? sender, CancelEventArgs e)
+    {
+        if (_isBusy)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        var column = _headerColumn ?? string.Empty;
+        var kind = string.IsNullOrEmpty(column) ? ColumnFilterKind.None : ColumnFilterService.KindOf(column);
+        var header = dgv.Columns.Cast<DataGridViewColumn>()
+            .FirstOrDefault(candidate => candidate.DataPropertyName == column)?.HeaderText ?? column;
+        header = header.TrimEnd(' ', '\u25BC');
+
+        hdrFilter.Visible = kind != ColumnFilterKind.None;
+        hdrGranularity.Visible = kind == ColumnFilterKind.Date;
+        hdrClearColumnFilter.Visible = kind != ColumnFilterKind.None;
+        hdrClearColumnFilter.Enabled = _columnFilters.IsFiltered(column);
+        hdrClearColumnFilter.Text = $"Effacer le filtre de « {header} »";
+        hdrClearAllFilters.Enabled = _columnFilters.HasFilters;
+        hdrClearAllFilters.Text = $"Effacer tous les filtres de colonne ({_columnFilters.ActiveColumnCount})";
+        hdrSeparator1.Visible = kind != ColumnFilterKind.None;
+
+        if (kind == ColumnFilterKind.Date)
+        {
+            var granularity = _columnFilters.GetGranularity(column);
+            hdrGranularityYear.Checked = granularity == DateFilterGranularity.Year;
+            hdrGranularityMonth.Checked = granularity == DateFilterGranularity.Month;
+            hdrGranularityDay.Checked = granularity == DateFilterGranularity.Day;
+        }
+
+        if (kind != ColumnFilterKind.None) BuildColumnFilterMenu(column, kind, header);
+
+        var sortable = dgv.Columns.Cast<DataGridViewColumn>()
+            .FirstOrDefault(candidate => candidate.DataPropertyName == column);
+        hdrSortAscending.Enabled = hdrSortDescending.Enabled = sortable is { SortMode: not DataGridViewColumnSortMode.NotSortable };
+    }
+
+    private void BuildColumnFilterMenu(string column, ColumnFilterKind kind, string header)
+    {
+        hdrFilter.Text = kind == ColumnFilterKind.City ? "Filtrer par ville" : $"Filtrer « {header} »";
+        hdrFilter.DropDownItems.Clear();
+
+        var granularity = _columnFilters.GetGranularity(column);
+        // Cascade : seules les valeurs des médias satisfaisant les autres filtres sont proposées.
+        var visible = _session.Media.Where(_activeFilter).Where(item => _columnFilters.Matches(item, column)).ToList();
+        var counts = visible
+            .GroupBy(item => ColumnFilterService.KeyFor(item, column, granularity), StringComparer.Ordinal)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+        var keys = counts.Keys
+            .OrderBy(key => key == ColumnFilterService.EmptyKey ? 1 : 0)
+            .ThenBy(key => key, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        if (keys.Count == 0)
+        {
+            hdrFilter.DropDownItems.Add(new ToolStripMenuItem("Aucune valeur") { Enabled = false });
+            return;
+        }
+
+        var selectAll = new ToolStripMenuItem("(Tout sélectionner)") { Checked = !_columnFilters.IsFiltered(column) };
+        selectAll.Click += (_, _) =>
+        {
+            _columnFilters.Clear(column);
+            RefreshFilter();
+        };
+        hdrFilter.DropDownItems.Add(selectAll);
+        hdrFilter.DropDownItems.Add(new ToolStripSeparator());
+
+        foreach (var key in keys)
+        {
+            var current = key;
+            var label = ColumnFilterService.LabelFor(current, column, granularity);
+            var item = new ToolStripMenuItem($"{label} ({counts[current]})") { Checked = _columnFilters.IsSelected(column, current) };
+            item.Click += (_, _) =>
+            {
+                _columnFilters.Toggle(column, current, keys);
+                RefreshFilter();
+            };
+            hdrFilter.DropDownItems.Add(item);
+        }
+    }
+
+    private void hdrClearColumnFilter_Click(object? sender, EventArgs e)
+    {
+        if (string.IsNullOrEmpty(_headerColumn)) return;
+        _columnFilters.Clear(_headerColumn);
+        RefreshFilter();
+    }
+
+    private void clearColumnFilters_Click(object? sender, EventArgs e)
+    {
+        _columnFilters.ClearAll();
+        RefreshFilter();
+    }
+
+    private void hdrGranularityYear_Click(object? sender, EventArgs e) => SetDateGranularity(DateFilterGranularity.Year);
+
+    private void hdrGranularityMonth_Click(object? sender, EventArgs e) => SetDateGranularity(DateFilterGranularity.Month);
+
+    private void hdrGranularityDay_Click(object? sender, EventArgs e) => SetDateGranularity(DateFilterGranularity.Day);
+
+    private void SetDateGranularity(DateFilterGranularity granularity)
+    {
+        if (string.IsNullOrEmpty(_headerColumn)) return;
+        _columnFilters.SetGranularity(_headerColumn, granularity);
+        RefreshFilter();
+    }
+
+    private void hdrSortAscending_Click(object? sender, EventArgs e) => SortHeaderColumn(ListSortDirection.Ascending);
+
+    private void hdrSortDescending_Click(object? sender, EventArgs e) => SortHeaderColumn(ListSortDirection.Descending);
+
+    private void SortHeaderColumn(ListSortDirection direction)
+    {
+        var column = dgv.Columns.Cast<DataGridViewColumn>()
+            .FirstOrDefault(candidate => candidate.DataPropertyName == _headerColumn);
+        if (column is null || column.SortMode == DataGridViewColumnSortMode.NotSortable) return;
+        try { dgv.Sort(column, direction); }
+        catch (InvalidOperationException ex) { AppLogger.Error($"Unable to sort {column.Name}.", ex); }
+    }
+
+    private void hdrAutoSize_Click(object? sender, EventArgs e) =>
+        dgv.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.DisplayedCells);
+
+    private void columnsMenu_DropDownOpening(object? sender, EventArgs e)
+    {
+        if (sender is not ToolStripMenuItem menu) return;
+        menu.DropDownItems.Clear();
+        foreach (DataGridViewColumn column in dgv.Columns)
+        {
+            var current = column;
+            var text = string.IsNullOrWhiteSpace(current.HeaderText) ? current.Name : current.HeaderText.TrimEnd(' ', '\u25BC');
+            var item = new ToolStripMenuItem(text) { Checked = current.Visible, CheckOnClick = true };
+            item.Click += (_, _) =>
+            {
+                if (!item.Checked && dgv.Columns.Cast<DataGridViewColumn>().Count(candidate => candidate.Visible) <= 1)
+                {
+                    item.Checked = true;
+                    return;
+                }
+                current.Visible = item.Checked;
+                SaveColumnVisibility();
+            };
+            menu.DropDownItems.Add(item);
+        }
+    }
+
+    private void dgv_DataBindingComplete(object? sender, DataGridViewBindingCompleteEventArgs e) => ApplyColumnVisibility();
+
+    private void ApplyColumnVisibility()
+    {
+        if (_settings.HiddenColumns.Count == 0) return;
+        var hidden = _settings.HiddenColumns.ToHashSet(StringComparer.Ordinal);
+        foreach (DataGridViewColumn column in dgv.Columns)
+        {
+            var key = ColumnKey(column);
+            var visible = !hidden.Contains(key);
+            if (column.Visible != visible) column.Visible = visible;
+        }
+        if (dgv.Columns.Cast<DataGridViewColumn>().All(column => !column.Visible) && dgv.Columns.Count > 0)
+            dgv.Columns[0].Visible = true;
+    }
+
+    private void SaveColumnVisibility()
+    {
+        _settings.HiddenColumns = dgv.Columns.Cast<DataGridViewColumn>()
+            .Where(column => !column.Visible)
+            .Select(ColumnKey)
+            .ToList();
+        try { _settings.Save(); }
+        catch (Exception ex) { AppLogger.Error("Unable to persist column visibility.", ex); }
+    }
+
+    private static string ColumnKey(DataGridViewColumn column) =>
+        string.IsNullOrEmpty(column.DataPropertyName) ? column.Name : column.DataPropertyName;
+
+    private void UpdateColumnFilterIndicators()
+    {
+        foreach (DataGridViewColumn column in dgv.Columns)
+        {
+            var filtered = !string.IsNullOrEmpty(column.DataPropertyName) && _columnFilters.IsFiltered(column.DataPropertyName);
+            var baseText = column.HeaderText.TrimEnd(' ', '\u25BC');
+            var desired = filtered ? $"{baseText} \u25BC" : baseText;
+            if (column.HeaderText != desired) column.HeaderText = desired;
+        }
+        clearColumnFiltersMenuItem.Enabled = _columnFilters.HasFilters;
+        clearColumnFiltersMenuItem.Text = $"Effacer les filtres de colonne ({_columnFilters.ActiveColumnCount})";
+    }
+
+    private void gridContextMenu_Opening(object? sender, CancelEventArgs e)
+    {
+        var selected = SelectedItems;
+        if (_isBusy || selected.Count == 0)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        var count = selected.Count;
+        var pending = selected.Count(item => item.HasPendingChanges);
+        var sharedGps = SharedLocation(selected);
+        var sharedDate = SharedDate(selected);
+
+        ctxCopyGps.Enabled = sharedGps is not null;
+        ctxCopyGps.Text = sharedGps is { } gps ? $"GPS : {FormatGpsSearchText(gps)}" : "GPS (valeurs différentes)";
+        ctxCopyDate.Enabled = sharedDate is not null;
+        ctxCopyDate.Text = sharedDate is { } date ? $"Date : {FormatDateClipboard(date)}" : "Date (valeurs différentes)";
+        ctxCopyBoth.Enabled = sharedGps is not null && sharedDate is not null;
+
+        ctxPasteGps.Enabled = _gpsClipboard is not null;
+        ctxPasteGps.Text = _gpsClipboard is { } clipboardGps ? $"GPS : {FormatGpsSearchText(clipboardGps)}" : "GPS (presse-papiers vide)";
+        ctxPasteDate.Enabled = _dateClipboard is not null;
+        ctxPasteDate.Text = _dateClipboard is { } clipboardDate ? $"Date : {FormatDateClipboard(clipboardDate)}" : "Date (presse-papiers vide)";
+        ctxPasteBoth.Enabled = _gpsClipboard is not null && _dateClipboard is not null;
+
+        ctxPrepareGps.Enabled = IsGpsInputValid;
+        ctxPrepareGps.Text = IsGpsInputValid && _currentLocation is { } current
+            ? $"GPS : {(string.IsNullOrWhiteSpace(_currentLocationName) ? FormatGpsSearchText(current) : _currentLocationName)}"
+            : "GPS (aucun lieu validé)";
+        ctxPrepareDate.Text = $"Date : {dateTimePicker1.Value:yyyy-MM-dd}";
+        ctxPrepareBoth.Enabled = IsGpsInputValid;
+
+        ctxRemoveGps.Enabled = selected.Any(item => item.EffectiveLatitude.HasValue || item.EffectiveLongitude.HasValue);
+        ctxResetSelection.Enabled = pending > 0;
+        ctxResetSelection.Text = $"Restaurer la sélection ({pending})";
+        ctxApply.Enabled = pending > 0;
+        ctxApply.Text = $"Vérifier et appliquer la sélection ({pending})";
+        ctxImmich.Enabled = _settings.ImmichEnabled;
+        ctxImmich.Text = $"Envoyer sur Immich ({count})";
+        ctxRemove.Text = $"Retirer de la session ({count})";
+        ctxOpenLocation.Enabled = count == 1;
+        ctxShowOnMap.Enabled = selected.Any(item => item.EffectiveLatitude.HasValue && item.EffectiveLongitude.HasValue);
+        ctxShowInformation.Enabled = count == 1;
+    }
+
+    private static string FormatDateClipboard((DateTime Date, TimeSpan? Offset) value) =>
+        value.Offset is { } offset
+            ? $"{value.Date:yyyy-MM-dd HH:mm:ss} ({(offset < TimeSpan.Zero ? "-" : "+")}{Math.Abs((int)offset.TotalHours):00}:{Math.Abs(offset.Minutes):00})"
+            : $"{value.Date:yyyy-MM-dd HH:mm:ss}";
+
+    private static GpsCoordinate? SharedLocation(IReadOnlyList<PhotoItem> items)
+    {
+        var first = items[0];
+        if (first.EffectiveLatitude is not double latitude || first.EffectiveLongitude is not double longitude) return null;
+        return items.All(item => CoordinatesMatch(item, latitude, longitude))
+            ? new GpsCoordinate(latitude, longitude, first.EffectiveAltitude)
+            : null;
+    }
+
+    private static (DateTime Date, TimeSpan? Offset)? SharedDate(IReadOnlyList<PhotoItem> items)
+    {
+        var first = items[0];
+        if (first.EffectiveCaptureDate is not DateTime date) return null;
+        var offset = first.EffectiveOffset;
+        return items.All(item => item.EffectiveCaptureDate == date && item.EffectiveOffset == offset)
+            ? (date, offset)
+            : null;
+    }
+
+    private void ctxCopyGps_Click(object? sender, EventArgs e) => CopyGpsSelected();
+
+    private void ctxCopyDate_Click(object? sender, EventArgs e) => CopyDateSelected();
+
+    private void ctxCopyBoth_Click(object? sender, EventArgs e)
+    {
+        CopyGpsSelected();
+        CopyDateSelected();
+        operationStatus.Text = "GPS et date copiés.";
+    }
+
+    private void CopyDateSelected()
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0 || SharedDate(selected) is not { } shared) return;
+        _dateClipboard = shared;
+        operationStatus.Text = "Date copiée.";
+        UpdateCommandState();
+    }
+
+    private void ctxPasteGps_Click(object? sender, EventArgs e) => PasteGpsSelected();
+
+    private void ctxPasteDate_Click(object? sender, EventArgs e) => PasteDateSelected();
+
+    private void ctxPasteBoth_Click(object? sender, EventArgs e)
+    {
+        if (_gpsClipboard is not { } gps || _dateClipboard is null) return;
+        var selected = SelectedItems;
+        if (selected.Count == 0) return;
+        RunPreparedEdit(() =>
+        {
+            using (_history.BeginBatch())
+            {
+                _sessionController.SetLocation(selected, gps.Latitude, gps.Longitude, gps.Altitude, _locations);
+                ApplyDateClipboard(selected);
+            }
+        });
+        QueueLocationResolution(selected);
+        RefreshMapMarkers();
+        operationStatus.Text = $"GPS et date collés sur {selected.Count} fichier(s).";
+    }
+
+    private void PasteDateSelected()
+    {
+        var selected = SelectedItems;
+        if (_dateClipboard is null || selected.Count == 0) return;
+        RunPreparedEdit(() => ApplyDateClipboard(selected));
+        operationStatus.Text = $"Date collée sur {selected.Count} fichier(s).";
+    }
+
+    private void ApplyDateClipboard(IReadOnlyList<PhotoItem> targets)
+    {
+        if (_dateClipboard is not { } clipboard) return;
+        _sessionController.EditDate(targets, new DateEditRequest
+        {
+            Mode = DateEditMode.Set,
+            Date = clipboard.Date,
+            ChangeTimezone = true,
+            TimezoneOffset = clipboard.Offset,
+            RemoveTimezone = clipboard.Offset is null,
+            TimezoneMode = TimezoneChangeMode.KeepLocalTime
+        });
+    }
+
+    private void ctxPrepareGps_Click(object? sender, EventArgs e) => PrepareGpsForSelection(sender, e);
+
+    private void ctxPrepareDate_Click(object? sender, EventArgs e) => PrepareDateForSelection(sender, e);
+
+    private void ctxPrepareBoth_Click(object? sender, EventArgs e)
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0 || !IsGpsInputValid || _currentLocation is not { } location) return;
+        RunPreparedEdit(() =>
+        {
+            using (_history.BeginBatch())
+            {
+                _sessionController.SetLocation(selected, location.Latitude, location.Longitude, location.Altitude, _locations);
+                _sessionController.StageDate(selected, dateTimePicker1.Value);
+            }
+            if (!string.IsNullOrWhiteSpace(_currentLocationName))
+                foreach (var item in selected) item.SetResolvedLocation(location.Latitude, location.Longitude, _currentLocationName);
+        });
+        if (string.IsNullOrWhiteSpace(_currentLocationName)) QueueLocationResolution(selected);
+        RefreshMapMarkers();
+        operationStatus.Text = $"GPS et date préparés pour {selected.Count} fichier(s).";
+    }
+
+    private async void ctxImmich_DropDownOpening(object? sender, EventArgs e)
+    {
+        if (!_immichAlbumsLoaded && !_isBusy) await LoadImmichAlbumsAsync();
+        BuildImmichContextMenu();
+    }
+
+    private void BuildImmichContextMenu()
+    {
+        ctxImmich.DropDownItems.Clear();
+        var noAlbum = new ToolStripMenuItem(NoAlbumEntry);
+        noAlbum.Click += async (_, _) => await SendToImmichAsync(SelectedItems);
+        ctxImmich.DropDownItems.Add(noAlbum);
+        foreach (var album in immichAlbum.Items.OfType<ImmichAlbum>())
+        {
+            var current = album;
+            var item = new ToolStripMenuItem(current.Name);
+            item.Click += (_, _) =>
+            {
+                immichAlbum.SelectedItem = current;
+                _ = SendToImmichAsync(SelectedItems);
+            };
+            ctxImmich.DropDownItems.Add(item);
+        }
+        var newAlbum = new ToolStripMenuItem(NewAlbumEntry);
+        newAlbum.Click += (_, _) =>
+        {
+            immichAlbum.SelectedItem = NewAlbumEntry;
+            _ = SendToImmichAsync(SelectedItems);
+        };
+        ctxImmich.DropDownItems.Add(new ToolStripSeparator());
+        ctxImmich.DropDownItems.Add(newAlbum);
+    }
+
+    private void ctxShowOnMap_Click(object? sender, EventArgs e)
+    {
+        if (!_map.Visible) ToggleMap();
+        else RefreshMapMarkers();
+    }
+
+    private void ctxOpenLocation_Click(object? sender, EventArgs e)
+    {
+        var active = SelectedItems.FirstOrDefault();
+        if (active is null) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{active.FilePath}\"") { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error($"Unable to reveal {active.FilePath}.", ex);
+            ThemedMessageBox.Show(ex.Message, "ExifTweaker", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+        }
+    }
+
+    private void ctxCopyPath_Click(object? sender, EventArgs e) => CopySelectedPaths();
+
+    private void CopySelectedPaths()
+    {
+        var selected = SelectedItems;
+        if (selected.Count == 0) return;
+        try
+        {
+            Clipboard.SetText(string.Join(Environment.NewLine, selected.Select(item => item.FilePath)));
+            operationStatus.Text = $"{selected.Count} chemin(s) copié(s).";
+        }
+        catch (Exception ex)
+        {
+            AppLogger.Error("Unable to copy file paths.", ex);
+            operationStatus.Text = "Impossible de copier les chemins.";
+        }
+    }
+
     private async void dgv_CellMouseClick(object sender, DataGridViewCellMouseEventArgs e)
     {
         if (e.RowIndex < 0 || dgv.Rows[e.RowIndex].DataBoundItem is not PhotoItem item) return;
-        DisplayActiveMetadata(item);
         if (_map.Visible) RefreshMapMarkers();
         try
         {
@@ -525,7 +966,13 @@ public partial class Form1 : Form
 
     private void dgv_CellFormatting(object? sender, DataGridViewCellFormattingEventArgs e)
     {
-        if (e.RowIndex < 0 || e.RowIndex >= _bindingSource.Count || e.ColumnIndex != thumbnailColumn.Index) return;
+        if (e.RowIndex < 0 || e.ColumnIndex < 0 || e.RowIndex >= _bindingSource.Count) return;
+        if (dgv.Columns[e.ColumnIndex].DataPropertyName == nameof(PhotoItem.Details))
+        {
+            e.CellStyle.WrapMode = DataGridViewTriState.True;
+            return;
+        }
+        if (e.ColumnIndex != thumbnailColumn.Index) return;
         PhotoItem? item;
         try { item = _bindingSource[e.RowIndex] as PhotoItem; }
         catch (ArgumentOutOfRangeException) { return; }
@@ -583,6 +1030,12 @@ public partial class Form1 : Form
         if (keyData == (Keys.Control | Keys.A)) { dgv.SelectAll(); return true; }
         if (keyData == (Keys.Control | Keys.Z)) { UndoPendingChanges(); return true; }
         if (keyData == (Keys.Control | Keys.Y)) { RedoPendingChanges(); return true; }
+        if (dgv.Focused && SelectedItems.Count > 0)
+        {
+            if (keyData == (Keys.Control | Keys.Shift | Keys.C)) { CopySelectedPaths(); return true; }
+            if (keyData == (Keys.Control | Keys.C)) { ctxCopyBoth_Click(this, EventArgs.Empty); return true; }
+            if (keyData == (Keys.Control | Keys.V)) { ctxPasteBoth_Click(this, EventArgs.Empty); return true; }
+        }
         return base.ProcessCmdKey(ref message, keyData);
     }
 
@@ -692,7 +1145,6 @@ public partial class Form1 : Form
             _informationRequest = null;
             return;
         }
-        DisplayActiveMetadata(_activeItem);
         if (_informationView.Visible && !_isBusy && _boundItemsUpdateDepth == 0) await LoadInformationAsync(_activeItem);
     }
 
@@ -720,7 +1172,7 @@ public partial class Form1 : Form
 
     private void RefreshFilter()
     {
-        var desired = _session.Media.Where(_activeFilter).ToList();
+        var desired = _session.Media.Where(item => _activeFilter(item) && _columnFilters.Matches(item)).ToList();
         var selectedBefore = SelectedItems.ToHashSet();
         var currentBefore = dgv.CurrentRow?.DataBoundItem as PhotoItem;
         var currentColumn = dgv.CurrentCell?.ColumnIndex ?? 0;
@@ -750,7 +1202,12 @@ public partial class Form1 : Form
             if (row.DataBoundItem is PhotoItem item && selectedBefore.Contains(item)) row.Selected = true;
         if (dgv.SelectedRows.Count == 0 && currentRow is not null) currentRow.Selected = true;
         _restoringGridSelection = false;
-        if (filterQuickCommand is not null) filterQuickCommand.Text = $"Filtre : {_activeFilterName} ({_view.Count}/{_session.Media.Count})";
+        UpdateColumnFilterIndicators();
+        if (filterQuickCommand is not null)
+        {
+            var columnSuffix = _columnFilters.HasFilters ? $" + {_columnFilters.ActiveColumnCount} colonne(s)" : string.Empty;
+            filterQuickCommand.Text = $"Filtre : {_activeFilterName}{columnSuffix} ({_view.Count}/{_session.Media.Count})";
+        }
         UpdateFilterChecks();
         UpdateCommandState();
         var currentItem = dgv.CurrentRow?.DataBoundItem as PhotoItem;
@@ -1061,11 +1518,6 @@ public partial class Form1 : Form
         }
     }
 
-    private void DisplayActiveMetadata(PhotoItem item)
-    {
-        if (item.EffectiveCaptureDate is DateTime captureDate) dateTimePicker1.Value = captureDate;
-    }
-
     private void QueueLocationResolution(IEnumerable<PhotoItem> items)
     {
         var targets = items
@@ -1370,6 +1822,8 @@ public partial class Form1 : Form
     {
         if (IsDisposed) return;
         ThemeService.Apply(_gpsSuggestionsPopup);
+        ThemeService.Apply(gridContextMenu);
+        ThemeService.Apply(headerContextMenu);
         try { await _map.SetThemeAsync(ThemeService.IsDarkNow); }
         catch (Exception ex) { AppLogger.Error("Map theme update failed.", ex); }
     }

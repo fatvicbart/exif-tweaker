@@ -20,6 +20,7 @@ public sealed class AppSettings
     public bool CheckForUpdatesAutomatically { get; set; } = true;
     public bool IncludePrereleaseUpdates { get; set; } = false;
     public bool ConfirmBulkPrepare { get; set; } = true;
+    public List<string> HiddenColumns { get; set; } = new();
     public bool ImmichEnabled { get; set; }
     public string ImmichServerUrl { get; set; } = string.Empty;
     public string? ImmichDefaultAlbumId { get; set; }
@@ -70,6 +71,7 @@ public sealed class AppSettings
         MapTileUrl = string.IsNullOrWhiteSpace(MapTileUrl) ? "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" : MapTileUrl;
         ImmichUploadConcurrency = Math.Clamp(ImmichUploadConcurrency, 1, 8);
         ImmichDefaultVisibility = ImmichDefaultVisibility is "archive" or "hidden" or "locked" ? ImmichDefaultVisibility : "timeline";
+        HiddenColumns ??= new List<string>();
         return this;
     }
 }
